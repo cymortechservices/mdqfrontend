@@ -1,0 +1,67 @@
+/*
+ * Design tokens. The emerald palette is the one the existing MDQ frontend already used
+ * (global.css): same background, border, CTA and text values, extended with a brighter accent,
+ * a surface ramp and a gold highlight for badges.
+ */
+:root {
+  color-scheme: dark;
+
+  /* Original palette (unchanged values) */
+  --background: hsl(158, 100%, 8%);
+  --dark-background: hsl(159, 100%, 6%);
+  --cta-color: hsl(139, 45%, 24%);
+  --border: hsl(140, 45%, 22%);
+  --primary-text: hsl(0, 0%, 96%);
+  --secondary-text: hsl(150, 13%, 75%);
+  --hover-background-color: hsl(140, 45%, 18%);
+  --hover-border: hsl(140, 45%, 35%);
+  --warning-color: hsl(0, 84%, 60%);
+  --whatsapp-color: #25d366;
+
+  /* Extensions */
+  --bg: var(--background);
+  --bg-deep: var(--dark-background);
+  --surface: hsl(158, 80%, 10.5%);
+  --surface-2: hsl(156, 60%, 13%);
+  --surface-3: hsl(150, 45%, 17%);
+  --line: var(--border);
+  --line-soft: hsl(150, 40%, 16%);
+  --text: var(--primary-text);
+  --text-2: var(--secondary-text);
+  --text-3: hsl(150, 12%, 60%);
+  --accent: hsl(152, 70%, 52%);
+  --accent-2: hsl(160, 75%, 62%);
+  --accent-ink: hsl(158, 100%, 6%);
+  --accent-soft: hsla(152, 70%, 52%, 0.14);
+  --gold: hsl(43, 92%, 62%);
+  --gold-soft: hsla(43, 92%, 62%, 0.14);
+  --danger: hsl(0, 84%, 66%);
+  --danger-soft: hsla(0, 84%, 60%, 0.14);
+  --warn: hsl(36, 95%, 62%);
+  --warn-soft: hsla(36, 95%, 62%, 0.14);
+  --info: hsl(190, 80%, 62%);
+  --info-soft: hsla(190, 80%, 62%, 0.12);
+  --success: var(--accent);
+  --success-soft: var(--accent-soft);
+
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "League Spartan", "Inter", system-ui, sans-serif;
+
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 26px;
+  --shadow-sm: 0 1px 2px hsla(160, 100%, 2%, 0.5);
+  --shadow: 0 10px 30px -12px hsla(160, 100%, 2%, 0.7), 0 2px 6px hsla(160, 100%, 2%, 0.4);
+  --shadow-lg: 0 30px 80px -24px hsla(160, 100%, 1%, 0.85);
+  --glow: 0 0 0 1px hsla(152, 70%, 52%, 0.3), 0 8px 40px -10px hsla(152, 70%, 52%, 0.35);
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --header-h: 68px;
+  --sidebar-w: 264px;
+  --sidebar-w-collapsed: 76px;
+  --topbar-h: 68px;
+  --gutter: clamp(16px, 4vw, 32px);
+  --content-w: 1160px;
+}

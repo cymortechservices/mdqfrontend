@@ -1,0 +1,51 @@
+/* Generation overlay: CAT ≈ 4 min, full exam ≈ 8 min. */
+.gen { position: fixed; inset: 0; z-index: 600; display: grid; overflow: auto; background: radial-gradient(900px 600px at 50% -10%, hsl(155, 70%, 15%), var(--bg-deep) 70%); animation: fade-in 0.45s ease both; }
+.gen__bg { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.gen__orb { position: absolute; border-radius: 50%; filter: blur(60px); opacity: 0.55; animation: orb-drift 14s ease-in-out infinite alternate; }
+.gen__orb--a { width: 420px; height: 420px; left: -120px; top: 10%; background: hsla(152, 80%, 45%, 0.45); }
+.gen__orb--b { width: 360px; height: 360px; right: -100px; top: 45%; background: hsla(43, 92%, 58%, 0.22); animation-delay: -5s; }
+.gen__orb--c { width: 300px; height: 300px; left: 40%; bottom: -140px; background: hsla(175, 80%, 45%, 0.3); animation-delay: -9s; }
+@keyframes orb-drift { to { transform: translate(60px, -40px) scale(1.15); } }
+.gen__spark { position: absolute; left: calc((var(--i) * 7.3%) + 2%); bottom: -10px; width: 4px; height: 4px; border-radius: 50%; background: var(--accent-2); opacity: 0; animation: spark-rise calc(7s + var(--i) * 0.45s) linear calc(var(--i) * -0.6s) infinite; }
+@keyframes spark-rise { 0% { transform: translateY(0) scale(0.6); opacity: 0; } 12% { opacity: 0.9; } 100% { transform: translateY(-105vh) translateX(30px) scale(1.2); opacity: 0; } }
+.gen__panel { position: relative; z-index: 1; margin: auto; width: min(100% - 2rem, 640px); display: grid; justify-items: center; gap: 0.9rem; text-align: center; padding: clamp(1.4rem, 4vw, 2.2rem) 0 2rem; }
+.gen__core { position: relative; width: 168px; height: 168px; margin-bottom: 0.4rem; }
+.gen__ring, .gen__orbit { position: absolute; inset: 0; width: 100%; height: 100%; }
+.gen__ring { transform: rotate(-90deg); }
+.gen__ring-bg { fill: none; stroke: hsla(0, 0%, 100%, 0.1); stroke-width: 5; }
+.gen__ring-fg { fill: none; stroke: url(#none); stroke: var(--accent); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: calc(100 - var(--p)); transition: stroke-dashoffset 1s linear; filter: drop-shadow(0 0 6px hsla(152, 80%, 55%, 0.8)); }
+.gen__orbit { animation: spin 3.2s linear infinite; } .gen__orbit circle { fill: var(--gold); filter: drop-shadow(0 0 6px var(--gold)); }
+.gen__pulse { position: absolute; inset: 22px; display: grid; place-content: center; justify-items: center; gap: 0.1rem; border-radius: 50%; background: radial-gradient(circle, hsla(152, 70%, 40%, 0.28), hsla(158, 90%, 8%, 0.9) 70%); animation: core-breathe 3s ease-in-out infinite; }
+.gen__pulse strong { font-family: var(--font-display); font-size: 2.2rem; font-variant-numeric: tabular-nums; line-height: 1; }
+.gen__ecg { width: 76px; height: 26px; } .gen__ecg path { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 140; stroke-dashoffset: 140; animation: ecg 2s linear infinite; }
+@keyframes ecg { 0% { stroke-dashoffset: 140; } 60%, 100% { stroke-dashoffset: 0; } }
+@keyframes core-breathe { 50% { transform: scale(1.04); box-shadow: 0 0 40px -6px hsla(152, 80%, 50%, 0.5); } }
+.gen__eyebrow { margin: 0; }
+.gen__title { font-size: clamp(1.7rem, 1.2rem + 2vw, 2.4rem); }
+.gen__desc { color: var(--text-2); max-width: 46ch; margin: 0; }
+.gen__bar { width: 100%; height: 10px; border-radius: 99px; background: hsla(0, 0%, 100%, 0.09); overflow: hidden; margin-top: 0.4rem; }
+.gen__bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--cta-color), var(--accent), var(--accent-2)); background-size: 200% 100%; animation: bar-flow 2.2s linear infinite; transition: width 1s linear; position: relative; }
+.gen__bar span::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, hsla(0, 0%, 100%, 0.45), transparent); transform: translateX(-100%); animation: sheen 1.8s ease-in-out infinite; }
+@keyframes bar-flow { to { background-position: -200% 0; } } @keyframes sheen { to { transform: translateX(100%); } }
+.gen__times { display: flex; justify-content: space-between; width: 100%; font-size: 0.86rem; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.gen__estimate { font-size: 0.78rem; color: var(--text-3); max-width: 52ch; margin: 0; }
+.gen__phases { list-style: none; display: grid; gap: 0.5rem; width: 100%; text-align: left; margin-top: 0.4rem; }
+.gen__phase { display: flex; gap: 0.8rem; align-items: flex-start; padding: 0.65rem 0.85rem; border-radius: 12px; border: 1px solid transparent; color: var(--text-3); transition: all 0.4s var(--ease); }
+.gen__phase-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--line); flex: none; transition: all 0.4s; }
+.gen__phase-body { display: grid; gap: 0.15rem; } .gen__phase-body span { font-size: 0.86rem; color: var(--text-2); animation: route-in 0.4s var(--ease) both; }
+.gen__phase.is-done { color: var(--accent-2); } .gen__phase.is-done .gen__phase-icon { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.gen__phase.is-current { color: var(--text); background: hsla(152, 70%, 40%, 0.14); border-color: hsla(152, 70%, 52%, 0.4); }
+.gen__phase.is-current .gen__phase-icon { border-color: var(--accent); color: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+.gen__extras { display: grid; grid-template-columns: 1.6fr 1fr; gap: 0.9rem; width: 100%; margin-top: 0.6rem; text-align: left; }
+.gen__tip, .gen__breathe { padding: 1rem 1.1rem; border-radius: var(--radius-lg); border: 1px solid var(--line); background: hsla(158, 80%, 10.5%, 0.75); backdrop-filter: blur(6px); display: grid; gap: 0.6rem; align-content: start; }
+.gen__tip-kicker { display: flex; align-items: center; gap: 0.4rem; margin: 0; font-size: 0.74rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); font-weight: 700; }
+.gen__tip-body { display: grid; gap: 0.25rem; min-height: 5.2rem; animation: route-in 0.5s var(--ease) both; } .gen__tip-body p { color: var(--text-2); font-size: 0.93rem; }
+.gen__tip-nav { display: flex; justify-content: space-between; align-items: center; }
+.gen__dots { display: flex; gap: 5px; } .gen__dots i { width: 6px; height: 6px; border-radius: 99px; background: hsla(0, 0%, 100%, 0.18); transition: all 0.3s; } .gen__dots i.is-on { width: 18px; background: var(--accent); }
+.gen__breathe { justify-items: center; text-align: center; } .gen__breathe p { margin: 0; font-size: 0.8rem; color: var(--text-3); }
+.gen__breathe-btn { display: grid; justify-items: center; gap: 0.7rem; width: 100%; padding: 0.4rem; background: none; border: 0; color: var(--text-2); font-weight: 600; font-size: 0.9rem; }
+.gen__bubble { width: 46px; height: 46px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--accent-2), hsl(158, 70%, 30%)); box-shadow: 0 0 24px hsla(152, 80%, 50%, 0.45); transition: transform 4s ease-in-out; }
+.gen__bubble.is-in { transform: scale(1.5); } .gen__bubble.is-hold { transform: scale(1.5); } .gen__bubble.is-out { transform: scale(1); }
+.gen__breathe-btn:not(.is-on) .gen__bubble { transform: scale(1); animation: bob 3.5s ease-in-out infinite; }
+@media (max-width: 600px) { .gen__extras { grid-template-columns: 1fr; } .gen__core { width: 140px; height: 140px; } .gen__pulse strong { font-size: 1.8rem; } }
+@media (prefers-reduced-motion: reduce) { .gen__orb, .gen__spark, .gen__orbit, .gen__ecg path, .gen__bar span, .gen__bar span::after { animation: none !important; } .gen__ecg path { stroke-dashoffset: 0; } .gen__bubble { transition: none; } }

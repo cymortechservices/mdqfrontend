@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /portal
+Disallow: /examroom
+Disallow: /examinterface
+Disallow: /performance
+Disallow: /leaderboard
+Disallow: /profile
+Disallow: /admin
+Disallow: /shared-cat
+Disallow: /verify-email
+Disallow: /reset-password
