@@ -47,11 +47,10 @@ Legacy URLs (`/pages/login.html`, `/portal.html`, …) are canonicalised to clea
 - Performance analytics with score-over-time chart, strengths/weaknesses, filters, full review with source passages, CAT share links.
 - Accessibility: skip links, native `<dialog>` modals, focus management, labelled controls, live regions, `prefers-reduced-motion`, keyboard operable.
 
-## Honest limitations — please read
+## Honest limitations 
 
-1. **Pricing.** Kept exactly as the current frontend: **CAT KSh 30, full exam KSh 99** (`src/lib/config.ts`). The frontend never sends an amount; the **backend decides what M-Pesa actually charges**. The master brief mentioned KSh 90 for the exam — if the backend charges 90, change `PRICING.exam` in one place.
+1. **Pricing.** Kept exactly as the current frontend: **CAT KSh 30, full exam KSh 99** (`src/lib/config.ts`). The frontend never sends an amount; the **backend decides what M-Pesa actually charges**.
 2. **Leaderboard.** The original page was "Coming soon" and no endpoint exists, so no rankings are shown.
 3. **Not verified against the real backend / live M-Pesa.** Everything was exercised against the included mock only. Payment logic is a 1:1 port; confirmation relies solely on the server's `paid` status.
-4. **Toolchain.** The build sandbox could not reach the npm registry, so the stack is deliberately dependency-light: React, zod, esbuild-based scripts, an in-house router and motion helpers, inline SVG icons/charts. `package-lock.json` is **not** included — run `npm install` once to create it. Type-checking was done with a private minimal React type shim; with real `@types/react` installed, run `npm run typecheck` to confirm.
-5. Admin user deletion uses `DELETE /api/admin/users/:id` exactly as the original did.
-6. Google Fonts and the Umami analytics script load from their CDNs as in the original `index.html`.
+4. Admin user deletion uses `DELETE /api/admin/users/:id` exactly as the original did.
+5. Google Fonts and the Umami analytics script load from their CDNs as in the original `index.html`.
