@@ -123,7 +123,7 @@ export default function PerformancePage() {
             </Button>
           }
         >
-          Generated CATs and exams will be saved here.
+          CATs and exams you set up will be saved here.
         </EmptyState>
       ) : (
         <>
@@ -219,7 +219,7 @@ export default function PerformancePage() {
                       <span className="result-card__top">
                         <span>
                           <span className="result-card__date">
-                            {record.completedAt ? "Completed" : "Generated"} {formatDateTime(date, "exam")}
+                            {record.completedAt ? "Completed" : "Set up"} {formatDateTime(date, "exam")}
                           </span>
                           <span className="result-card__title">{titleOf(record)}</span>
                           <span className="muted">

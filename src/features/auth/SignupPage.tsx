@@ -5,7 +5,7 @@ import { PasswordField, TextField } from "../../components/ui/Field";
 import { Icon } from "../../components/ui/Icon";
 import { Link, useNavigate, useSearchParams } from "../../lib/router";
 import { errorMessage, request } from "../../lib/api";
-import { ALLOWED_EMAIL_DOMAINS, SHARED_CAT_PARAM_PATTERN } from "../../lib/config";
+import { SHARED_CAT_PARAM_PATTERN } from "../../lib/config";
 import { usePageMeta } from "../../lib/meta";
 import {
   PASSWORD_MAX,
@@ -33,7 +33,6 @@ export default function SignupPage() {
   const [errors, setErrors] = useState<FieldErrors<Field>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [domainsOpen, setDomainsOpen] = useState(false);
 
   const set = (key: Field) => (event: { target: { value: string } }) => setValues((v) => ({ ...v, [key]: event.target.value }));
   const checks = checkPassword(values.password.trim());
@@ -91,7 +90,7 @@ export default function SignupPage() {
           name="email"
           icon="mail"
           autoComplete="email"
-          placeholder="name@students.uonbi.ac.ke"
+          placeholder="student@jkuat.ac.ke"
           value={values.email}
           onChange={set("email")}
           onBlur={() => {
@@ -99,23 +98,9 @@ export default function SignupPage() {
             else setErrors((e) => ({ ...e, email: undefined }));
           }}
           error={errors.email}
-          hint={
-            <>
-              Only supported university emails are accepted.{" "}
-              <button type="button" className="link-btn" onClick={() => setDomainsOpen((o) => !o)} aria-expanded={domainsOpen} aria-controls="domain-list">
-                {domainsOpen ? "Hide list" : "See the list"}
-              </button>
-            </>
-          }
+          hint="All university emails are supported."
           required
         />
-        {domainsOpen ? (
-          <ul id="domain-list" className="domain-list" aria-label="Accepted email domains">
-            {ALLOWED_EMAIL_DOMAINS.map((domain) => (
-              <li key={domain}>@{domain}</li>
-            ))}
-          </ul>
-        ) : null}
         <TextField
           label="WhatsApp number"
           type="tel"

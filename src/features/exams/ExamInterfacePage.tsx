@@ -6,7 +6,7 @@ import { Alert, Badge, EmptyState } from "../../components/ui/Feedback";
 import { Icon } from "../../components/ui/Icon";
 import { TextField } from "../../components/ui/Field";
 import { RingGauge } from "../../components/charts/TrendChart";
-import { api, request, errorMessage } from "../../lib/api";
+import { api, request } from "../../lib/api";
 import {
   formatClock,
   formatDuration,
@@ -30,19 +30,32 @@ import {
   clearAnswerDraft,
 } from "../../lib/storage";
 import type { ExamPayload, ExamResult } from "../../types/api";
+import { countQuestions, getLive, resetLive, useLive } from "./liveAssessment";
+
+const getLiveStatus = () => getLive().status;
 
 type Answers = Record<string, string>;
 
-/** Starts (or resumes) the clock exactly like the original: the first time the exam opens, `startedAt` is stored on currentExam. */
-function useStoredExam(): { raw: ExamPayload | null; startedAt: number } {
+/**
+ * Starts (or resumes) the clock: the first time the exam opens, `startedAt` is stored on currentExam.
+ * With streaming, that is the moment the first questions appear. `interruptedOnLoad` is true when the page
+ * was reloaded while questions were still arriving (the connection died with the old page).
+ */
+function useStoredExam(): { raw: ExamPayload | null; startedAt: number; interruptedOnLoad: boolean } {
   return useMemo(() => {
     const raw = readCurrentExam();
-    if (!raw) return { raw: null, startedAt: 0 };
+    if (!raw) return { raw: null, startedAt: Date.now(), interruptedOnLoad: false };
     const saved = Number(raw.startedAt);
     const startedAt = Number.isFinite(saved) && saved > 0 ? saved : Date.now();
     raw.startedAt = startedAt;
+    // The marker is stored with the exam so every later mount of this page agrees the stream was cut short.
+    if (raw.streaming === true && getLiveStatus() === "idle") {
+      delete raw.streaming;
+      raw.interrupted = true;
+    }
+    const interruptedOnLoad = raw.interrupted === true;
     saveCurrentExam(raw);
-    return { raw, startedAt };
+    return { raw, startedAt, interruptedOnLoad };
   }, []);
 }
 
@@ -70,8 +83,17 @@ function useCountdown(deadline: number, active: boolean, onExpire: () => void) {
 
 export default function ExamInterfacePage() {
   usePageMeta({ title: "MDQ Exam Interface", path: "/examinterface" });
-  const { raw, startedAt } = useStoredExam();
-  const exam = useMemo(() => (raw ? normalizeExam(raw) : null), [raw]);
+  const { raw, startedAt, interruptedOnLoad } = useStoredExam();
+  const live = useLive();
+  // While an assessment is arriving (or has just finished arriving) the live store is the source of truth.
+  const source = live.status !== "idle" && live.exam ? live.exam : raw;
+  const exam = useMemo(() => (source ? normalizeExam(source) : null), [source]);
+  const stream: StreamInfo = {
+    active: live.status === "streaming",
+    expected: live.status !== "idle" ? live.expected : null,
+    error: live.status === "error" ? live.error : null,
+    interrupted: interruptedOnLoad,
+  };
 
   if (!exam || !exam.questions.length) {
     return (
@@ -86,19 +108,31 @@ export default function ExamInterfacePage() {
             </ButtonLink>
           }
         >
-          Go back to the exam room and generate a test first.
+          Go back to the exam room and set up a test first.
         </EmptyState>
       </div>
     );
   }
-  return <ExamSession exam={exam} startedAt={startedAt} />;
+  const clock = Number(source?.startedAt) > 0 ? Number(source!.startedAt) : startedAt;
+  return <ExamSession exam={exam} startedAt={clock} stream={stream} />;
+}
+
+/** What the exam page needs to know about questions that are still arriving. */
+interface StreamInfo {
+  active: boolean;
+  /** Total announced by the server, when it announced one. */
+  expected: number | null;
+  /** The stream broke after the exam opened. */
+  error: string | null;
+  /** The page was reloaded mid-stream. */
+  interrupted: boolean;
 }
 
 interface SubmitResult {
   result: ExamResult;
 }
 
-function ExamSession({ exam, startedAt }: { exam: ViewExam; startedAt: number }) {
+function ExamSession({ exam, startedAt, stream }: { exam: ViewExam; startedAt: number; stream: StreamInfo }) {
   const navigate = useNavigate();
   const [answers, setAnswers] = useState<Answers>(() => readAnswerDraft(exam.examId));
   const [index, setIndex] = useState(0);
@@ -107,17 +141,49 @@ function ExamSession({ exam, startedAt }: { exam: ViewExam; startedAt: number })
   const [infoOpen, setInfoOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<SubmitResult | null>(null);
   const submittingRef = useRef(false);
   const answersRef = useRef(answers);
   answersRef.current = answers;
   const [announce, setAnnounce] = useState("");
 
-  const total = exam.questions.length;
-  const question = exam.questions[index]!;
+  const received = exam.questions.length;
+  const arriving = stream.active;
+  const incomplete = !arriving && (stream.error !== null || stream.interrupted);
+  // The count shown to the student: what the server announced, once it announced something, else what has arrived.
+  const total = arriving && stream.expected ? Math.max(stream.expected, received) : received;
+  const pending = Math.max(0, total - received);
+  const question = exam.questions[Math.min(index, received - 1)]!;
   const answeredCount = exam.questions.filter((q) => (answers[q.id] ?? "").trim() !== "").length;
+  // Submitting is locked until every question has arrived AND has an answer. Only the timer running out submits regardless.
+  const left = Math.max(0, total - answeredCount);
+  const canSubmit = !arriving && received > 0 && answeredCount >= received;
+  const lockHint = arriving
+    ? "Submit unlocks once every question has arrived and been answered."
+    : left > 0
+      ? `Answer the remaining ${left} question${left === 1 ? "" : "s"} to unlock Submit.`
+      : "Every question is answered. You can submit now.";
   const deadline = startedAt + exam.durationMinutes * 60 * 1000;
+
+  // ----- questions arriving: tell screen readers, and show a short "all ready" note when the last one lands -----
+  const lastReceived = useRef(received);
+  const wasArriving = useRef(arriving);
+  const [justFinished, setJustFinished] = useState(false);
+  useEffect(() => {
+    if (arriving && received > lastReceived.current) setAnnounce(`${received} questions ready`);
+    lastReceived.current = received;
+  }, [received, arriving]);
+  useEffect(() => {
+    if (wasArriving.current && !arriving && !stream.error) {
+      setJustFinished(true);
+      setAnnounce(`All ${received} questions are ready.`);
+      const id = window.setTimeout(() => setJustFinished(false), 5000);
+      wasArriving.current = arriving;
+      return () => window.clearTimeout(id);
+    }
+    wasArriving.current = arriving;
+    return undefined;
+  }, [arriving, stream.error, received]);
 
   // ----- draft persistence (same keys as the original; scoped to this exam) -----
   useEffect(() => {
@@ -182,57 +248,73 @@ function ExamSession({ exam, startedAt }: { exam: ViewExam; startedAt: number })
   };
 
   // ----- submission (POST /api/submit-exam, identical payload to the original) -----
-  const submit = useCallback(async () => {
-    if (submittingRef.current) return;
-    submittingRef.current = true;
-    setSubmitting(true);
-    setError(null);
-    setConfirmOpen(false);
+  // No error banner: a failed attempt is retried quietly (always, once time is up, since nothing else can be done).
+  // Only a clear rejection from the server (HTTP 4xx other than 408/425/429) stops the retries.
+  const submit = useCallback(
+    async (timeUp = false) => {
+      if (submittingRef.current) return;
+      submittingRef.current = true;
+      setSubmitting(true);
+      setConfirmOpen(false);
 
-    const payload: Answers = {};
-    for (const q of exam.questions) {
-      const value = answersRef.current[q.id] ?? "";
-      payload[q.id] = q.type === "mcq" ? value : value.trim();
-    }
-    safeSet(KEYS.currentExamAnswers, JSON.stringify(payload));
-
-    try {
-      let result: ExamResult | null = null;
-      for (;;) {
-        const response = await request<ExamResult & { error?: string; nameRequired?: boolean }>("/api/submit-exam", {
-          method: "POST",
-          json: { examId: exam.examId, answers: payload },
-        });
-        if (response.status === 428 && response.data.nameRequired) {
-          const displayName = await requestDisplayName();
-          await api("/api/me/name", { method: "PUT", json: { displayName }, fallbackMessage: "Could not save your name." });
-          continue;
-        }
-        if (!response.ok) throw new Error(response.data.error || "Submission failed.");
-        result = response.data;
-        break;
+      const payload: Answers = {};
+      for (const q of exam.questions) {
+        const value = answersRef.current[q.id] ?? "";
+        payload[q.id] = q.type === "mcq" ? value : value.trim();
       }
-      safeSet(
-        KEYS.currentExamResult,
-        JSON.stringify({ exam: { ...exam }, answers: payload, result, completedAt: new Date().toISOString() }),
-      );
-      safeRemove(KEYS.currentExam);
-      clearAnswerDraft();
-      setDone({ result });
-      window.scrollTo(0, 0);
-    } catch (cause) {
-      console.error("Could not submit exam:", cause);
-      setError(`${errorMessage(cause, "Submission failed.")} Check your connection and try again.`);
-      submittingRef.current = false;
-    } finally {
-      setSubmitting(false);
-    }
-  }, [exam]);
+      safeSet(KEYS.currentExamAnswers, JSON.stringify(payload));
+
+      const maxAttempts = timeUp ? 60 : 4;
+      try {
+        let result: ExamResult | null = null;
+        for (let attempt = 1; attempt <= maxAttempts && !result; attempt++) {
+          try {
+            const response = await request<ExamResult & { error?: string; nameRequired?: boolean }>("/api/submit-exam", {
+              method: "POST",
+              json: { examId: exam.examId, answers: payload },
+            });
+            if (response.status === 428 && response.data.nameRequired) {
+              const displayName = await requestDisplayName();
+              await api("/api/me/name", { method: "PUT", json: { displayName }, fallbackMessage: "Could not save your name." });
+              attempt--; // saving the name is not a failed attempt
+              continue;
+            }
+            if (response.ok) {
+              result = response.data;
+              break;
+            }
+            const retryable = response.status >= 500 || [408, 425, 429].includes(response.status);
+            console.error("Submit rejected:", response.status, response.data.error);
+            if (!retryable) break;
+          } catch (cause) {
+            console.error("Could not submit exam:", cause); // network error: try again
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, Math.min(1000 * attempt, 5000)));
+        }
+        if (!result) {
+          submittingRef.current = false;
+          return;
+        }
+        safeSet(
+          KEYS.currentExamResult,
+          JSON.stringify({ exam: { ...exam }, answers: payload, result, completedAt: new Date().toISOString() }),
+        );
+        safeRemove(KEYS.currentExam);
+        resetLive();
+        clearAnswerDraft();
+        setDone({ result });
+        window.scrollTo(0, 0);
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [exam],
+  );
 
   // ----- timer (auto-submits at zero, as the original did) -----
   const remaining = useCountdown(deadline, !done, () => {
     setAnnounce("Time is up. Submitting your answers.");
-    void submit();
+    void submit(true);
   });
   useEffect(() => {
     if (remaining === 600 || remaining === 300 || remaining === 60) setAnnounce(`${remaining / 60} minute${remaining === 60 ? "" : "s"} remaining`);
@@ -247,14 +329,14 @@ function ExamSession({ exam, startedAt }: { exam: ViewExam; startedAt: number })
       return next;
     });
   const go = (target: number) => {
-    setIndex(Math.max(0, Math.min(total - 1, target)));
+    setIndex(Math.max(0, Math.min(received - 1, target)));
     setNavOpen(false);
     window.scrollTo({ top: 0 });
   };
 
   if (done) return <ResultScreen exam={exam} result={done.result} onNavigate={navigate} />;
 
-  const timerClass = remaining <= 120 ? "is-danger" : remaining <= 600 ? "is-warn" : "";
+  const timerClass = remaining <= 10 ? "is-danger" : ""; // flashes red only during the final 10 seconds
   const sectionOf = (q: ViewQuestion) => exam.sections.find((s) => s.questions.includes(q));
   const section = sectionOf(question);
   const posInSection = section ? section.questions.indexOf(question) + 1 : index + 1;
@@ -290,6 +372,20 @@ function ExamSession({ exam, startedAt }: { exam: ViewExam; startedAt: number })
           </div>
         </div>
       ))}
+      {pending > 0 ? (
+        <div className="qnav__group" aria-live="polite">
+          <p className="qnav__title">
+            On the way <span>({pending})</span>
+          </p>
+          <div className="qnav__grid">
+            {Array.from({ length: pending }, (_, i) => (
+              <span key={i} className="qbtn qbtn--pending" aria-hidden="true">
+                {received + i + 1}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <ul className="qnav__legend" aria-label="Legend">
         <li><span className="qbtn qbtn--demo is-answered"><Icon name="check" size={10} /></span> Answered</li>
         <li><span className="qbtn qbtn--demo is-flagged"><Icon name="flag" size={10} /></span> Flagged</li>
@@ -321,10 +417,11 @@ function ExamSession({ exam, startedAt }: { exam: ViewExam; startedAt: number })
 
           <div className="exam-bar__progress" aria-label={`${answeredCount} of ${total} answered`}>
             <span>
-              {answeredCount}/{total} answered
+              {answeredCount}/{total}
+              {arriving && !stream.expected ? "+" : ""} answered
             </span>
             <div className="exam-bar__track">
-              <i style={{ width: `${(answeredCount / total) * 100}%` }} />
+              <i style={{ width: `${total ? (answeredCount / total) * 100 : 0}%` }} />
             </div>
           </div>
 
@@ -339,7 +436,14 @@ function ExamSession({ exam, startedAt }: { exam: ViewExam; startedAt: number })
             <Button variant="secondary" size="sm" iconLeft="layers" onClick={() => setNavOpen(true)} className="show-lg-hide">
               Questions
             </Button>
-            <Button size="sm" iconLeft="send" onClick={() => setConfirmOpen(true)} disabled={submitting} className="exam-submit">
+            <Button
+              size="sm"
+              iconLeft="send"
+              onClick={() => setConfirmOpen(true)}
+              disabled={submitting || !canSubmit}
+              title={canSubmit ? undefined : lockHint}
+              className={`exam-submit ${canSubmit ? "" : "is-locked"}`}
+            >
               Submit
             </Button>
           </div>
@@ -367,9 +471,30 @@ function ExamSession({ exam, startedAt }: { exam: ViewExam; startedAt: number })
                 : "Your assessment is ready. You can start answering."}
             </Alert>
           ) : null}
-          {error ? (
-            <Alert tone="error" title="Submission failed">
-              {error}
+          {arriving ? (
+            <div className="stream-banner" role="status">
+              <span className="spinner spinner--sm" aria-hidden="true" />
+              <div>
+                <strong>
+                  {received} {stream.expected ? `of ${total} ` : ""}question{received === 1 ? "" : "s"} ready
+                </strong>
+                <span>More are arriving while you work. Start answering now. Submit unlocks once every question has arrived and been answered.</span>
+                {stream.expected ? (
+                  <div className="stream-banner__track" aria-hidden="true">
+                    <i style={{ width: `${Math.min(100, (received / total) * 100)}%` }} />
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : justFinished ? (
+            <Alert tone="success" title={`All ${received} questions are ready`}>
+              Nothing more will arrive. You can submit whenever you are done.
+            </Alert>
+          ) : incomplete ? (
+            <Alert tone="warning" title="Not every question arrived">
+              {stream.interrupted
+                ? `The page was reloaded while your questions were still arriving. You have ${received} question${received === 1 ? "" : "s"}; you can answer and submit these.`
+                : `${stream.error ?? "The connection was interrupted."} You have ${received} question${received === 1 ? "" : "s"}; you can answer and submit these, or set up a new test.`}
             </Alert>
           ) : null}
 
@@ -396,7 +521,7 @@ function ExamSession({ exam, startedAt }: { exam: ViewExam; startedAt: number })
             question={question}
             number={posInSection}
             sectionTitle={section?.title ?? ""}
-            sectionCount={section?.questions.length ?? total}
+            sectionCount={arriving && exam.examType === "cat" ? total : (section?.questions.length ?? total)}
             overall={index + 1}
             total={total}
             value={answers[question.id] ?? ""}
@@ -411,17 +536,25 @@ function ExamSession({ exam, startedAt }: { exam: ViewExam; startedAt: number })
             </Button>
             <span className="muted" aria-hidden="true">
               {index + 1} / {total}
+              {arriving && !stream.expected ? "+" : ""}
             </span>
-            {index < total - 1 ? (
+            {index < received - 1 ? (
               <Button iconRight="arrowRight" onClick={() => go(index + 1)}>
                 Next
               </Button>
+            ) : arriving ? (
+              <Button variant="secondary" disabled loading>
+                Next question arriving…
+              </Button>
             ) : (
-              <Button iconRight="send" onClick={() => setConfirmOpen(true)} disabled={submitting}>
+              <Button iconRight="send" onClick={() => setConfirmOpen(true)} disabled={submitting || !canSubmit} className={canSubmit ? "" : "is-locked"}>
                 Review &amp; submit
               </Button>
             )}
           </div>
+          <p className={`submit-hint ${canSubmit ? "is-ready" : ""}`} role="status">
+            <Icon name={canSubmit ? "checkCircle" : "lock"} size={15} /> {lockHint}
+          </p>
         </main>
       </div>
 
@@ -443,7 +576,9 @@ function ExamSession({ exam, startedAt }: { exam: ViewExam; startedAt: number })
         onClose={() => setConfirmOpen(false)}
         title="Submit your answers?"
         description={
-          unanswered
+          incomplete
+            ? `Only ${received} question${received === 1 ? "" : "s"} arrived. You have ${unanswered} unanswered. Unanswered questions score zero.`
+            : unanswered
             ? `You have ${unanswered} unanswered question${unanswered === 1 ? "" : "s"}. Unanswered questions score zero.`
             : "You have answered every question."
         }

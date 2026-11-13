@@ -7,7 +7,7 @@ import { usePageMeta } from "../lib/meta";
 const START = [
   { n: "01", title: "Create and verify", text: "Register with your student email, confirm the code sent to your inbox, and keep your WhatsApp number current." },
   { n: "02", title: "Bring useful material", text: "Upload clear PDFs, Word documents, or text notes. Focus each request on one subject and name the topic you want to practice." },
-  { n: "03", title: "Review the result", text: "Complete the generated questions without checking the answer key, then use your score and feedback to choose your next revision." },
+  { n: "03", title: "Review the result", text: "Complete the questions MDQ sets for you without checking the answer key, then use your score and feedback to choose your next revision." },
 ];
 
 const ROUTINE = [

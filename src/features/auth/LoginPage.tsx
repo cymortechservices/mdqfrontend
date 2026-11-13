@@ -129,7 +129,7 @@ export default function LoginPage() {
           name="email"
           icon="mail"
           autoComplete="username"
-          placeholder="name@students.uonbi.ac.ke"
+          placeholder="student@jkuat.ac.ke"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           onBlur={() => {

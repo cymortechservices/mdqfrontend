@@ -1,102 +1,183 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useReducedMotion } from "../../lib/motion";
+import { releaseHero } from "../../lib/introState";
+import { HeartFallback } from "../three/HeartCanvas";
+import { isLowPower, loadHeartScene } from "../three/loadHeart";
 
 /**
- * Cinematic brand intro (~9 s). Scenes are driven by CSS animation delays (see styles/intro.css):
- *   0.0 s  emergence – emerald particles, a fine ECG line, the official logo fades in
- *   2.4 s  brand reveal – MDQ wordmark rises with a soft light sweep
- *   5.2 s  signature glitch – two brief low-amplitude chromatic/slice shifts (no luminance flashing)
- *   6.6 s  reveal – curtains part onto the already-rendered homepage
- * The homepage is mounted underneath from the start, so Skip is instant.
+ * Cinematic brand intro (~7.8 s), driven by ONE clock so the 3D scene and the DOM layers never drift:
+ *   Scene 1  0.0–2.0 s  emergence – particles drift, the 3D anatomical heart assembles out of them, ECG light pulse
+ *   Scene 2  2.0–4.0 s  intelligence – holographic scan ring, scan lines, floating data nodes, gentle 3D rotation
+ *   Scene 3  4.0–6.0 s  brand reveal – the heart recedes; the MDQ / Karimique logo appears with a metallic light sweep
+ *   Scene 4  6.0–7.8 s  portal – the heart dissolves into particles that form a ring; the camera flies through it
+ *                       while a circular opening reveals the (already mounted) homepage
+ * Skip (button or Esc) is available immediately. Reduced motion gets a calm 1.8 s static brand card, and
+ * devices without WebGL keep every DOM layer plus a CSS heart, so the sequence never breaks.
  */
-const PARTICLES = Array.from({ length: 26 }, (_, i) => {
-  // Deterministic pseudo-random values so the layout is stable between renders.
-  const a = Math.sin(i * 12.9898) * 43758.5453;
-  const b = Math.sin(i * 78.233) * 12345.6789;
-  const r1 = a - Math.floor(a);
-  const r2 = b - Math.floor(b);
-  return { x: Math.round(r1 * 100), delay: Math.round(r2 * 40) / 10, size: 2 + Math.round(r1 * 3), dur: 5 + Math.round(r2 * 40) / 10 };
-});
-
-const TOTAL_MS = 9300;
+const TOTAL_S = 7.8;
 const REDUCED_MS = 1800;
+const SCENE_AT = [0, 2, 4, 6];
+const HOLE_FROM = 6.75;
+const HOLE_TO = 7.7;
 
 export function Intro({ onDone }: { onDone: () => void }) {
   const reduced = useReducedMotion();
-  const [leaving, setLeaving] = useState(false);
-  const skipRef = useRef<HTMLButtonElement>(null);
-  const timers = useRef<number[]>([]);
-  const finished = useRef(false);
+  const root = useRef<HTMLDivElement>(null);
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const skip = useRef<HTMLButtonElement>(null);
+  const finishRef = useRef<() => void>(() => {});
 
-  const finish = useCallback(() => {
-    if (finished.current) return;
-    finished.current = true;
-    setLeaving(true);
-    timers.current.push(window.setTimeout(onDone, 380));
-  }, [onDone]);
+  const finish = useCallback(() => finishRef.current(), []);
 
   useEffect(() => {
+    const el = root.current;
+    if (!el) return undefined;
     document.documentElement.classList.add("intro-lock");
-    skipRef.current?.focus();
-    timers.current.push(window.setTimeout(finish, reduced ? REDUCED_MS : TOTAL_MS));
+    skip.current?.focus();
+
+    let done = false;
+    let raf = 0;
+    let scene: import("../three/heartScene").HeartScene | null = null;
+    let disposed = false;
+    let revealed = false;
+    const timers: number[] = [];
+    const start = performance.now();
+
+    const leave = () => {
+      if (done) return;
+      done = true;
+      cancelAnimationFrame(raf);
+      releaseHero();
+      el.classList.add("is-leaving");
+      timers.push(window.setTimeout(onDone, 380));
+    };
+    finishRef.current = leave;
+
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") finish();
-      // Keep focus on the skip button: nothing else is interactive while the intro plays.
+      if (event.key === "Escape") leave();
       if (event.key === "Tab") {
         event.preventDefault();
-        skipRef.current?.focus();
+        skip.current?.focus();
       }
     };
     document.addEventListener("keydown", onKey);
-    const pending = timers.current;
+
+    if (reduced) {
+      el.dataset.scene = "2";
+      timers.push(window.setTimeout(releaseHero, 900));
+      timers.push(window.setTimeout(leave, REDUCED_MS));
+    } else {
+      const low = isLowPower();
+      loadHeartScene()
+        .then((mod) => {
+          if (disposed || done) return;
+          if ((performance.now() - start) / 1000 > 3) return; // too late for a coherent 3D opening: keep the DOM-only version
+          const cv = canvas.current;
+          if (!cv) return;
+          scene = mod.createHeartScene({
+            canvas: cv,
+            mode: "intro",
+            lowPower: low,
+            onContextLost: () => {
+              scene?.dispose();
+              scene = null;
+              el.classList.remove("has-gl");
+            },
+          });
+          if (scene) el.classList.add("has-gl");
+        })
+        .catch(() => undefined);
+
+      const onResize = () => scene?.resize();
+      window.addEventListener("resize", onResize);
+      timers.push(window.setTimeout(() => window.removeEventListener("resize", onResize), TOTAL_S * 1000 + 500));
+
+      let lastScene = -1;
+      const frame = (now: number) => {
+        const t = Math.min(TOTAL_S, (now - start) / 1000);
+        let idx = 0;
+        SCENE_AT.forEach((at, i) => {
+          if (t >= at) idx = i;
+        });
+        if (idx !== lastScene) {
+          lastScene = idx;
+          el.dataset.scene = String(idx);
+        }
+        scene?.renderIntro(t);
+        if (t >= HOLE_FROM) {
+          const k = Math.min(1, (t - HOLE_FROM) / (HOLE_TO - HOLE_FROM));
+          const eased = k * k * (3 - 2 * k);
+          el.classList.add("is-opening");
+          el.style.setProperty("--hole", (eased * 1.16 - 0.16).toFixed(4));
+          if (!revealed) {
+            revealed = true;
+            releaseHero();
+          }
+        }
+        if (t >= TOTAL_S) {
+          leave();
+          return;
+        }
+        raf = requestAnimationFrame(frame);
+      };
+      raf = requestAnimationFrame(frame);
+      // If WebGL never came up, show the CSS heart.
+      timers.push(window.setTimeout(() => !scene && el.classList.add("no-gl"), 1500));
+    }
+
     return () => {
+      disposed = true;
+      cancelAnimationFrame(raf);
       document.documentElement.classList.remove("intro-lock");
       document.removeEventListener("keydown", onKey);
-      pending.forEach((id) => window.clearTimeout(id));
+      timers.forEach((id) => window.clearTimeout(id));
+      scene?.dispose();
+      scene = null;
     };
-  }, [finish, reduced]);
+  }, [onDone, reduced]);
 
   return (
     <div
-      className={`intro ${reduced ? "intro--reduced" : ""} ${leaving ? "is-leaving" : ""}`}
+      ref={root}
+      className={`intro ${reduced ? "intro--reduced" : ""}`}
+      data-scene="0"
       role="dialog"
       aria-modal="true"
       aria-label="MDQ by Karimique introduction"
     >
-      <button ref={skipRef} type="button" className="intro__skip" onClick={finish}>
+      <button ref={skip} type="button" className="intro__skip" onClick={finish}>
         Skip intro
       </button>
 
-      <div className="intro__curtain intro__curtain--l" aria-hidden="true" />
-      <div className="intro__curtain intro__curtain--r" aria-hidden="true" />
+      <div className="intro__bg" aria-hidden="true" />
+      <div className="intro__vignette" aria-hidden="true" />
+      <canvas ref={canvas} className="intro__canvas" aria-hidden="true" />
+      <HeartFallback className="intro__fallback" />
 
-      <div className="intro__bg" aria-hidden="true">
-        <svg className="intro__ecg" viewBox="0 0 1200 200" preserveAspectRatio="none">
-          <path d="M0 100 H430 L460 100 L482 40 L512 168 L540 70 L560 100 H1200" />
-        </svg>
-        {reduced
-          ? null
-          : PARTICLES.map((p, i) => (
-              <span
-                key={i}
-                className="intro__mote"
-                style={{ left: `${p.x}%`, width: p.size, height: p.size, animationDelay: `${p.delay}s`, animationDuration: `${p.dur}s` } as CSSProperties}
-              />
-            ))}
-      </div>
+      <svg className="intro__ecg" viewBox="0 0 1200 200" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+        <path
+          className="intro__ecg-ghost"
+          d="M0 100 H300 L314 88 L328 100 H337 L346 28 L359 182 L370 100 H382 L396 80 L412 100 H700 L714 88 L728 100 H737 L746 28 L759 182 L770 100 H782 L796 80 L812 100 H1200"
+        />
+        <path
+          className="intro__ecg-line"
+          pathLength="1000"
+          d="M0 100 H300 L314 88 L328 100 H337 L346 28 L359 182 L370 100 H382 L396 80 L412 100 H700 L714 88 L728 100 H737 L746 28 L759 182 L770 100 H782 L796 80 L812 100 H1200"
+        />
+      </svg>
+      <div className="intro__scanlines" aria-hidden="true" />
+      <div className="intro__beam" aria-hidden="true" />
 
-      <div className="intro__stage">
+      <div className="intro__brand">
         <div className="intro__logo-wrap">
           <img className="intro__logo" src="/images/karimique_logo.webp" alt="Karimique logo" width="1536" height="1024" />
+          <span className="intro__shine" aria-hidden="true" />
         </div>
-        <div className="intro__brand">
-          <div className="intro__word" data-text="MDQ" aria-label="MDQ">
-            <span>MDQ</span>
-          </div>
-          <p className="intro__tag">Medical exam practice · by Karimique</p>
+        <div className="intro__word" data-text="MDQ" aria-label="MDQ">
+          <span>MDQ</span>
         </div>
+        <p className="intro__tag">Medical exam practice · by Karimique</p>
       </div>
-      <div className="intro__scan" aria-hidden="true" />
     </div>
   );
 }

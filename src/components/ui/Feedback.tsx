@@ -119,8 +119,10 @@ export function Accordion({ items }: { items: { id: string; question: string; an
                 <Icon name="plus" size={20} className="accordion__icon" />
               </button>
             </h3>
-            <div id={panelId} role="region" aria-labelledby={buttonId} className="accordion__panel" hidden={!open}>
-              <div className="accordion__content">{item.answer}</div>
+            <div id={panelId} role="region" aria-labelledby={buttonId} className="accordion__panel" inert={!open}>
+              <div className="accordion__clip">
+                <div className="accordion__content">{item.answer}</div>
+              </div>
             </div>
           </div>
         );

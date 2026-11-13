@@ -9,13 +9,16 @@
  *   4. free trial                                                       → GET /api/exam-trials
  *   5. otherwise pay: POST /api/payments/stk-push { phoneNumber, testType } then poll
  *      GET /api/payments/:id/status every 3 s (max 60 times)
- *   6. generate: POST /api/generate-test (multipart; + paymentId when a payment is being consumed)
+ *   6. set up the assessment: POST /api/generate-test (multipart; + paymentId when a payment is being consumed).
+ *      The response is read as a stream of question batches (text/event-stream) or, as before, one JSON body.
  *
  * Nothing here ever marks a payment as paid on its own: only a server status of "paid" counts.
  */
 import { request, ApiError, errorMessage } from "../../lib/api";
+import type { StreamProgress } from "./assessmentStream";
+import { beginLive } from "./liveAssessment";
 import { PAYMENT_POLL_ATTEMPTS, PAYMENT_POLL_INTERVAL_MS, PRICING, type TestType } from "../../lib/config";
-import { KEYS, pendingPaymentKey, safeGet, safeRemove, safeSet, saveCurrentExam, clearAnswerDraft } from "../../lib/storage";
+import { KEYS, pendingPaymentKey, safeGet, safeRemove, safeSet, clearAnswerDraft } from "../../lib/storage";
 import type { ExamPayload, PaymentStatus, TrialsResponse } from "../../types/api";
 
 export type StartStage = "promo" | "payment-check" | "trial" | "payment" | "generate";
@@ -37,6 +40,8 @@ export interface StartUI {
   requestPayment: (testType: TestType, amount: number) => Promise<string | null>;
   /** Called while waiting for the M-Pesa prompt to be approved. */
   paymentWaiting: (info: { attempt: number; max: number } | null) => void;
+  /** Question batches received so far while the assessment is being set up. */
+  progress: (progress: StreamProgress) => void;
 }
 
 export class StartError extends Error {
@@ -90,7 +95,7 @@ export async function waitForPayment(id: string, ui: StartUI): Promise<boolean> 
   }
 }
 
-/** Returns the generated exam, or null when the student declined to pay. Throws StartError on failure. */
+/** Returns the assessment that was set up, or null when the student declined to pay. Throws StartError on failure. */
 export async function startAssessment(input: StartInput, ui: StartUI): Promise<ExamPayload | null> {
   const { testType } = input;
   const promoCode = input.promoCode.trim();
@@ -112,7 +117,7 @@ export async function startAssessment(input: StartInput, ui: StartUI): Promise<E
       });
       if (!promo.ok) throw new Error(promo.data.error || "Promo code could not be checked.");
       if (!promo.data.valid) throw new Error("That promo code is not valid.");
-      if (!promo.data.available) throw new Error("That promo code is generating another test. Try shortly.");
+      if (!promo.data.available) throw new Error("That promo code is setting up another test. Try shortly.");
       promoValid = true;
     } else {
       ui.stage("payment-check");
@@ -205,7 +210,8 @@ export async function startAssessment(input: StartInput, ui: StartUI): Promise<E
     }
 
     ui.stage("generate");
-    ui.status("Generating your assessment. This may take a few minutes; please keep this page open.", "info");
+    ui.status("Setting your assessment. Your first questions will open as soon as they are ready.", "info");
+    ui.progress({ received: 0, expected: null });
 
     // Field names are exactly those the original <form> posted.
     const form = new FormData();
@@ -217,15 +223,11 @@ export async function startAssessment(input: StartInput, ui: StartUI): Promise<E
     for (const file of input.files) form.append("materials", file);
     if (paymentId) form.append("paymentId", paymentId);
 
-    const response = await request<ExamPayload & { error?: string }>("/api/generate-test", { method: "POST", form, signal: ui.signal });
-    if (!response.ok) throw new Error(response.data.error || `HTTP Error status:${response.status}`);
-
-    const exam = response.data as ExamPayload;
-    exam.year = exam.year || input.year;
-    exam.subject = exam.subject || input.subject;
+    // Resolves as soon as the first questions arrive; the rest keep streaming into liveAssessment while the exam is open.
+    safeRemove(KEYS.currentExam); // nothing from an earlier exam (clock, questions) may leak into this one
+    const exam = await beginLive(form, { signal: ui.signal, fallbackType: testType, defaults: { year: input.year, subject: input.subject }, onProgress: ui.progress });
     // A new exam must never inherit answers drafted for a previous one.
     clearAnswerDraft();
-    saveCurrentExam(exam);
     safeRemove(KEYS.currentExamResult);
     ui.status("", "info");
     return exam;

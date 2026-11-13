@@ -181,6 +181,7 @@ export function Footer() {
       <div className="site-footer__bottom">
         <p>© 2026 {SITE.owner}. All rights reserved.</p>
         <p>MDQ is an educational study aid, not a medical service.</p>
+        <p className="site-footer__credit">Site made by Karimique and Smiley Cymor</p>
       </div>
     </footer>
   );

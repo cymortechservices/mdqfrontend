@@ -49,3 +49,9 @@
 .gen__breathe-btn:not(.is-on) .gen__bubble { transform: scale(1); animation: bob 3.5s ease-in-out infinite; }
 @media (max-width: 600px) { .gen__extras { grid-template-columns: 1fr; } .gen__core { width: 140px; height: 140px; } .gen__pulse strong { font-size: 1.8rem; } }
 @media (prefers-reduced-motion: reduce) { .gen__orb, .gen__spark, .gen__orbit, .gen__ecg path, .gen__bar span, .gen__bar span::after { animation: none !important; } .gen__ecg path { stroke-dashoffset: 0; } .gen__bubble { transition: none; } }
+.gen__pulse small { font-size: 0.72rem; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.08em; }
+.gen__ring-fg.is-indeterminate { animation: gen-spin 1.6s linear infinite; transform-origin: 60px 60px; }
+@keyframes gen-spin { to { transform: rotate(360deg); } }
+.gen__bar.is-indeterminate span { width: 38%; animation: gen-slide 1.5s ease-in-out infinite; }
+@keyframes gen-slide { 0% { transform: translateX(-110%); } 100% { transform: translateX(290%); } }
+@media (prefers-reduced-motion: reduce) { .gen__ring-fg.is-indeterminate, .gen__bar.is-indeterminate span { animation: none !important; } }

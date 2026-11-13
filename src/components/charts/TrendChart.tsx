@@ -107,7 +107,8 @@ export function TrendChart({ points, summary }: { points: TrendPoint[]; summary:
           </div>
         ) : null}
       </div>
-      <table className="sr-only">
+      <div className="sr-only">
+      <table>
         <caption>{summary}</caption>
         <thead>
           <tr>
@@ -126,6 +127,7 @@ export function TrendChart({ points, summary }: { points: TrendPoint[]; summary:
           ))}
         </tbody>
       </table>
+      </div>
     </figure>
   );
 }

@@ -1,16 +1,23 @@
 /**
  * Form validation. The rules below are ported 1:1 from the original login.js / signup.js.
- * Do not weaken the student-email restriction.
+ * The student-email check accepts any university (ac./edu) domain.
  */
 import { z } from "zod";
 import { ALLOWED_EMAIL_DOMAINS } from "./config";
 
 const EMAIL_REGEX = /^[a-z0-9._%+-]+@[a-z0-9.-]+$/;
 
+/** Academic domains such as jkuat.ac.ke, students.uonbi.ac.ke, uct.ac.za, mit.edu, ox.edu.au. */
+const UNIVERSITY_DOMAIN = /(^|\.)(ac\.[a-z]{2}|edu(\.[a-z]{2})?)$/;
+
+/**
+ * Any university email is accepted (the domains the original site listed are always accepted too).
+ * The backend remains the authority and its message is shown if it declines an address.
+ */
 export function checkStudentEmail(email: string): { clean: string; valid: boolean } {
   const clean = email.trim().toLowerCase();
-  const domain = clean.split("@")[1];
-  return { clean, valid: EMAIL_REGEX.test(clean) && ALLOWED_EMAIL_DOMAINS.includes(domain ?? "") };
+  const domain = clean.split("@")[1] ?? "";
+  return { clean, valid: EMAIL_REGEX.test(clean) && (ALLOWED_EMAIL_DOMAINS.includes(domain) || UNIVERSITY_DOMAIN.test(domain)) };
 }
 
 export const STUDENT_EMAIL_MESSAGE = "You must use your student email";

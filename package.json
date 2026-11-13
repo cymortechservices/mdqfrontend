@@ -1,6 +1,6 @@
 {
   "name": "mdq-frontend",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
   "description": "MDQ by Karimique — medical examination preparation platform for Kenyan MBChB students (frontend).",
   "type": "module",
@@ -20,12 +20,14 @@
   "dependencies": {
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "three": "0.170.0",
     "zod": "^3.25.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "@types/three": "0.170.0",
     "esbuild": "^0.28.0",
     "playwright-core": "^1.56.0",
     "tsx": "^4.20.0",

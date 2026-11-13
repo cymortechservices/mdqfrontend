@@ -10,6 +10,7 @@ import { usePageMeta } from "../../lib/meta";
 import { useNavigate, useSearchParams } from "../../lib/router";
 import type { TrialsResponse } from "../../types/api";
 import { FileDrop } from "./FileDrop";
+import type { StreamProgress } from "./assessmentStream";
 import { GeneratingOverlay } from "./GeneratingOverlay";
 import { PaymentConfirmDialog, PaymentWaitingDialog, type PaymentRequest } from "./PaymentDialog";
 import { StartError, startAssessment, type StartStage } from "./startAssessment";
@@ -19,7 +20,7 @@ const STAGE_LABEL: Record<StartStage, string> = {
   "payment-check": "Checking access",
   trial: "Checking free trial",
   payment: "Payment",
-  generate: "Generating assessment",
+  generate: "Setting your assessment",
 };
 const STAGE_ORDER: StartStage[] = ["payment-check", "trial", "payment", "generate"];
 
@@ -44,6 +45,7 @@ export default function ExamRoomPage() {
   const [stage, setStage] = useState<StartStage | null>(null);
   const [status, setStatus] = useState<{ text: string; tone: "info" | "success" | "error" } | null>(null);
   const [payRequest, setPayRequest] = useState<PaymentRequest | null>(null);
+  const [streamProgress, setStreamProgress] = useState<StreamProgress>({ received: 0, expected: null });
   const [waiting, setWaiting] = useState<{ attempt: number; max: number } | null>(null);
   const controller = useRef<AbortController | null>(null);
 
@@ -88,6 +90,7 @@ export default function ExamRoomPage() {
           status: (text, tone) => setStatus(text ? { text, tone } : null),
           stage: setStage,
           paymentWaiting: setWaiting,
+          progress: setStreamProgress,
           requestPayment: (type, amount) =>
             new Promise<string | null>((resolve) => {
               setPayRequest({
@@ -234,7 +237,7 @@ export default function ExamRoomPage() {
             )}
 
             <Button type="submit" size="lg" block loading={working} iconRight="arrowRight" id="start-exam">
-              {working ? (generating ? "Generating…" : "Working…") : "Start"}
+              {working ? (generating ? "Setting…" : "Working…") : "Start"}
             </Button>
 
             {working || status ? (
@@ -265,7 +268,7 @@ export default function ExamRoomPage() {
         </aside>
       </form>
 
-      {generating && testType ? <GeneratingOverlay testType={testType} subject={subject.trim()} year={year} /> : null}
+      {generating && testType ? <GeneratingOverlay testType={testType} subject={subject.trim()} year={year} progress={streamProgress} /> : null}
       <PaymentConfirmDialog request={payRequest} />
       <PaymentWaitingDialog progress={waiting} onStop={() => controller.current?.abort()} />
     </div>

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { ButtonLink } from "../../components/ui/Button";
 import { Accordion, Badge } from "../../components/ui/Feedback";
 import { Icon, type IconName } from "../../components/ui/Icon";
@@ -6,7 +6,8 @@ import { Reveal } from "../../lib/motion";
 import { Link } from "../../lib/router";
 import { ASSESSMENTS, PRICING, SITE, formatPrice } from "../../lib/config";
 import { usePageMeta } from "../../lib/meta";
-import { HeroPreview } from "./HeroPreview";
+import { HeartCanvas } from "../three/HeartCanvas";
+import { useScrollProgress, useTiltDelegation } from "../../lib/tilt";
 
 const PROBLEMS: { icon: IconName; problem: string; answer: string }[] = [
   {
@@ -97,7 +98,7 @@ const FAQ: { id: string; question: string; answer: ReactNode }[] = [
   {
     id: "start",
     question: "How do I start an assessment?",
-    answer: "Open the Exam Room, choose CAT or full exam, select your year of study and subject, add a topic or notes if you like, and press Start. Generating the assessment can take a few minutes, so keep the page open.",
+    answer: "Open the Exam Room, choose CAT or full exam, select your year of study and subject, add a topic or notes if you like, and press Start. Setting up your assessment takes a little while, so keep the page open.",
   },
   {
     id: "mpesa",
@@ -124,15 +125,41 @@ const FAQ: { id: string; question: string; answer: ReactNode }[] = [
   },
 ];
 
-function SectionHead({ kicker, title, children, center = false }: { kicker: string; title: ReactNode; children?: ReactNode; center?: boolean }) {
+function SectionHead({ kicker, title, children, center = false }: { kicker?: string; title: ReactNode; children?: ReactNode; center?: boolean }) {
   return (
     <Reveal className={`section-head ${center ? "section-head--center" : ""}`}>
-      <p className="eyebrow">{kicker}</p>
+      {kicker ? <p className="eyebrow">{kicker}</p> : null}
       <h2 className="h2">{title}</h2>
       {children ? <p className="lead">{children}</p> : null}
     </Reveal>
   );
 }
+
+/** Floating glass panels in the hero. Each one re-uses an EXISTING feature card (title + text) from FEATURES below. */
+const HERO_PANELS = [0, 3, 6, 4] as const;
+
+const FOUNDERS = [
+  {
+    key: "founder",
+    initials: "KW",
+    label: "Founder",
+    name: "Kennedy Wairimu",
+    position: "Founder of MDQ",
+    title: "C.E.O of Karimique Labs",
+    vision:
+      "Founded MDQ with a vision of transforming medical education through innovative technology, accessible learning experiences and smarter examination preparation. The goal is to empower future medical professionals with tools that support knowledge, confidence and academic excellence.",
+  },
+  {
+    key: "cofounder",
+    initials: "SC",
+    label: "Co-Founder",
+    name: "Smiley Cymor",
+    position: "Co-Founder of MDQ",
+    title: "C.E.O of CymorTechServices",
+    vision:
+      "Co-founded MDQ with a passion for technology, innovation and building meaningful digital solutions. His vision is to combine intelligent software, modern engineering and accessible technology to create impactful educational experiences that empower the next generation of medical professionals.",
+  },
+] as const;
 
 export default function HomePage() {
   usePageMeta({
@@ -144,8 +171,13 @@ export default function HomePage() {
     ogDescription: "You've read the notes. Can you recall them under pressure? Take a free CAT and find your blindspots before the examiner does.",
   });
 
+  const page = useRef<HTMLDivElement>(null);
+  const flow = useRef<HTMLOListElement>(null);
+  useTiltDelegation(page);
+  useScrollProgress(flow);
+
   return (
-    <>
+    <div ref={page} className="home">
       <section className="hero" aria-labelledby="hero-title">
         <div className="hero__bg" aria-hidden="true" />
         <div className="container hero__grid">
@@ -177,9 +209,29 @@ export default function HomePage() {
               <li><strong>MCQ · SAQ · Essay</strong></li>
             </ul>
           </div>
-          <Reveal className="hero__visual" from="scale">
-            <HeroPreview />
-          </Reveal>
+          <div className="hero__visual" aria-hidden="true">
+            <div className="stage">
+              <div className="stage__halo" />
+              <div className="stage__ring" />
+              <HeartCanvas />
+              <ul className="stage__panels">
+                {HERO_PANELS.map((featureIndex, i) => {
+                  const feature = FEATURES[featureIndex]!;
+                  return (
+                    <li key={feature.title} className={`gpanel gpanel--${i + 1}`}>
+                      <span className="gpanel__icon">
+                        <Icon name={feature.icon} size={18} />
+                      </span>
+                      <span className="gpanel__text">
+                        <strong>{feature.title}</strong>
+                        <span>{feature.text}</span>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -199,14 +251,16 @@ export default function HomePage() {
           </SectionHead>
           <div className="problem-grid">
             {PROBLEMS.map((item, index) => (
-              <Reveal key={item.problem} className="problem" index={index}>
-                <span className="problem__icon">
-                  <Icon name={item.icon} size={22} />
-                </span>
-                <p className="problem__q">{item.problem}</p>
-                <p className="problem__a">
-                  <Icon name="arrowRight" size={16} /> {item.answer}
-                </p>
+              <Reveal key={item.problem} className="cell" index={index}>
+                <div className="problem tilt" data-tilt="5">
+                  <span className="problem__icon">
+                    <Icon name={item.icon} size={22} />
+                  </span>
+                  <p className="problem__q">{item.problem}</p>
+                  <p className="problem__a">
+                    <Icon name="arrowRight" size={16} /> {item.answer}
+                  </p>
+                </div>
               </Reveal>
             ))}
           </div>
@@ -220,12 +274,14 @@ export default function HomePage() {
           </SectionHead>
           <div className="feature-grid">
             {FEATURES.map((feature, index) => (
-              <Reveal key={feature.title} className="feature" index={index % 3}>
-                <span className="feature__icon">
-                  <Icon name={feature.icon} size={22} />
-                </span>
-                <h3>{feature.title}</h3>
-                <p>{feature.text}</p>
+              <Reveal key={feature.title} className="cell" index={index % 3}>
+                <div className="feature tilt">
+                  <span className="feature__icon">
+                    <Icon name={feature.icon} size={22} />
+                  </span>
+                  <h3>{feature.title}</h3>
+                  <p>{feature.text}</p>
+                </div>
               </Reveal>
             ))}
           </div>
@@ -235,15 +291,18 @@ export default function HomePage() {
       <section className="section" id="how-it-works" aria-labelledby="how-title">
         <div className="container">
           <SectionHead kicker="How it works" title={<span id="how-title">From sign-up to your next attempt.</span>} />
-          <ol className="steps">
+          <ol className="flow" ref={flow}>
             {STEPS.map((step, index) => (
-              <Reveal as="li" key={step.title} className="step" index={index % 3}>
-                <span className="step__num" aria-hidden="true">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <div>
-                  <h3>{step.title}</h3>
-                  <p>{step.text}</p>
+              <Reveal as="li" key={step.title} className="flow__step" index={0}>
+                <span className="flow__node" aria-hidden="true" />
+                <div className="flow__card tilt" data-tilt="4">
+                  <span className="flow__num" aria-hidden="true">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <div>
+                    <h3>{step.title}</h3>
+                    <p>{step.text}</p>
+                  </div>
                 </div>
               </Reveal>
             ))}
@@ -269,8 +328,14 @@ export default function HomePage() {
             </ButtonLink>
           </Reveal>
           <Reveal className="demo__visual" from="right">
-            <div className="phone">
-              <img src="/images/mdq-image.webp" alt="Preview of MDQ medical exam practice on a phone" width="348" height="664" loading="lazy" decoding="async" />
+            <div className="demo__stage">
+              <span className="demo__plate demo__plate--back" aria-hidden="true" />
+              <span className="demo__plate demo__plate--mid" aria-hidden="true" />
+              <span className="demo__glow" aria-hidden="true" />
+              <div className="phone tilt" data-tilt="9">
+                <img src="/images/mdq-image.webp" alt="Preview of MDQ medical exam practice on a phone" width="348" height="664" loading="lazy" decoding="async" />
+                <span className="phone__sheen" aria-hidden="true" />
+              </div>
             </div>
           </Reveal>
         </div>
@@ -282,35 +347,39 @@ export default function HomePage() {
             Prices are in Kenyan shillings and per assessment. There is no subscription.
           </SectionHead>
           <div className="pricing">
-            <Reveal className="price price--free" index={0}>
-              <Badge tone="gold" icon="checkCircle">
-                Free starter offer
-              </Badge>
-              <p className="price__amount">
-                {PRICING.currency} 0
-              </p>
-              <p className="price__sub">After you verify your student email</p>
-              <ul className="checks">
-                <li><Icon name="check" size={18} /> 1 free CAT per account</li>
-                <li><Icon name="check" size={18} /> 1 free full exam per account</li>
-                <li><Icon name="check" size={18} /> No credit card or M-Pesa required</li>
-              </ul>
-              <ButtonLink to="/signup" block iconRight="arrowRight">
-                Claim your free assessments
-              </ButtonLink>
+            <Reveal className="cell" index={0}>
+              <div className="price price--free tilt" data-tilt="5">
+                <Badge tone="gold" icon="checkCircle">
+                  Free starter offer
+                </Badge>
+                <p className="price__amount">
+                  {PRICING.currency} 0
+                </p>
+                <p className="price__sub">After you verify your student email</p>
+                <ul className="checks">
+                  <li><Icon name="check" size={18} /> 1 free CAT per account</li>
+                  <li><Icon name="check" size={18} /> 1 free full exam per account</li>
+                  <li><Icon name="check" size={18} /> No credit card or M-Pesa required</li>
+                </ul>
+                <ButtonLink to="/signup" block iconRight="arrowRight">
+                  Claim your free assessments
+                </ButtonLink>
+              </div>
             </Reveal>
             {(["cat", "exam"] as const).map((type, i) => (
-              <Reveal key={type} className="price" index={i + 1}>
-                <Badge tone="neutral">{ASSESSMENTS[type].label}</Badge>
-                <p className="price__amount">
-                  {formatPrice(ASSESSMENTS[type].price)}
-                </p>
-                <p className="price__sub">per {type === "cat" ? "CAT" : "full exam"}, after your free one</p>
-                <ul className="checks">
-                  <li><Icon name="check" size={18} /> {ASSESSMENTS[type].questions}</li>
-                  <li><Icon name="check" size={18} /> Score, feedback and saved history</li>
-                  <li><Icon name="check" size={18} /> Pay with M-Pesa when you start</li>
-                </ul>
+              <Reveal key={type} className="cell" index={i + 1}>
+                <div className="price tilt" data-tilt="5">
+                  <Badge tone="neutral">{ASSESSMENTS[type].label}</Badge>
+                  <p className="price__amount">
+                    {formatPrice(ASSESSMENTS[type].price)}
+                  </p>
+                  <p className="price__sub">per {type === "cat" ? "CAT" : "full exam"}, after your free one</p>
+                  <ul className="checks">
+                    <li><Icon name="check" size={18} /> {ASSESSMENTS[type].questions}</li>
+                    <li><Icon name="check" size={18} /> Score, feedback and saved history</li>
+                    <li><Icon name="check" size={18} /> Pay with M-Pesa when you start</li>
+                  </ul>
+                </div>
               </Reveal>
             ))}
           </div>
@@ -332,7 +401,9 @@ export default function HomePage() {
       <section className="section" aria-labelledby="cta-title">
         <div className="container">
           <Reveal className="cta">
-            <div>
+            <span className="cta__aurora" aria-hidden="true" />
+            <span className="cta__grid" aria-hidden="true" />
+            <div className="cta__copy">
               <p className="eyebrow">Your next session starts here</p>
               <h2 className="h2" id="cta-title">
                 Find out what you don’t know, before the examiner does.
@@ -344,6 +415,33 @@ export default function HomePage() {
           </Reveal>
         </div>
       </section>
-    </>
+
+      <section className="section founders" id="founders" aria-labelledby="founders-title">
+        <div className="container">
+          <SectionHead title={<span id="founders-title">The Vision Behind MDQ</span>} center>
+            Built through a shared vision of making medical education more accessible, intelligent and impactful.
+          </SectionHead>
+          <Reveal className="founders__wrap">
+            <div className="founders__card">
+              {FOUNDERS.map((person, index) => (
+                <article key={person.key} className={`profile profile--${person.key} tilt`} data-tilt="4" aria-label={`${person.label}: ${person.name}`}>
+                  <div className="profile__head">
+                    <span className="profile__avatar" aria-hidden="true">
+                      <span>{person.initials}</span>
+                    </span>
+                    <span className="profile__label">{person.label}</span>
+                  </div>
+                  <h3 className="profile__name">{person.name}</h3>
+                  <p className="profile__position">{person.position}</p>
+                  <p className="profile__title">{person.title}</p>
+                  <p className="profile__vision">{person.vision}</p>
+                  {index === 0 ? <span className="profile__divider" aria-hidden="true" /> : null}
+                </article>
+              ))}
+            </div>
+          </Reveal>
+        </div>
+      </section>
+    </div>
   );
 }

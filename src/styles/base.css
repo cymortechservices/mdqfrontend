@@ -76,3 +76,6 @@ html.js-motion .reveal.is-in { opacity: 1; transform: none; }
 }
 @media (max-width: 640px) { .hide-sm { display: none !important; } }
 @media (min-width: 1025px) { .show-lg-hide { display: none !important; } }
+/* Safety net: no screen-reader-only element, table or otherwise, may widen the page (caused sideways scroll on mobile). */
+.sr-only { clip-path: inset(50%); max-width: 1px; max-height: 1px; }
+html, body { overflow-x: clip; }

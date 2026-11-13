@@ -148,14 +148,48 @@ export function createMockApi({ generateMs = Number(process.env.MOCK_GENERATE_MS
     }
     if (p === "/api/generate-test" && m === "POST") {
       const raw = await readRaw(req);
-      await sleep(generateMs);
       const type = /name="test-type"\r\n\r\n(cat|exam)/.exec(raw)?.[1] === "exam" ? "exam" : "cat";
       const subject = /name="subject"\r\n\r\n([^\r]*)/.exec(raw)?.[1] || "Pharmacology";
       const year = /name="year"\r\n\r\n([^\r]*)/.exec(raw)?.[1] || "3";
       const exam = makeExam(type, subject, year);
       if (!/name="paymentId"/.test(raw) && !/name="promoCode"\r\n\r\n\S/.test(raw)) state.trials[type] = false;
-      return json(res, 200, exam), true;
+      const wantsStream = (req.headers.accept || "").includes("text/event-stream");
+      if (!wantsStream || url.searchParams.get("json") === "1") {
+        await sleep(generateMs);
+        return json(res, 200, exam), true;
+      }
+      // Mock of the real backend: question batches as server-sent events (DEV ONLY; event shape is an assumption).
+      res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
+      const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      if (subject === "Realistic") {
+        // DEV ONLY: imitates the production backend as seen in its logs: 50 questions in chunks of 15/15/15/5, progress
+        // events carrying plannedQuestionCount, a non-fatal retry notice that has an `error` field, no `done` event.
+        const all = makeMcqs(50);
+        const { mcqs: _m, ...meta } = exam;
+        send("started", { ...meta, plannedQuestionCount: 50 });
+        let published = 0;
+        for (const [index, size] of [15, 15, 15, 5].entries()) {
+          await sleep(700);
+          if (index === 1) send("chunk_retry_policy", { error: "Upstream model timed out; retrying chunk 2", attempt: 1, maxAttempts: 3 });
+          if (index === 1) await sleep(900);
+          send("chunk_published", { mcqs: all.slice(published, published + size), publishedQuestionCount: (published += size), plannedQuestionCount: 50 });
+        }
+        return res.end(), true;
+      }
+      const total = (exam.mcqs?.length ?? 0) + (exam.saqs?.length ?? 0) + (exam.essay?.length ?? 0);
+      const { mcqs, saqs, essay, ...meta } = exam;
+      send("meta", { ...meta, total });
+      const step = Math.max(1, Math.ceil(mcqs.length / 4));
+      for (let i = 0; i < mcqs.length; i += step) {
+        await sleep(Math.round(generateMs / 6));
+        send("batch", { mcqs: mcqs.slice(i, i + step) });
+      }
+      if (saqs?.length) { await sleep(Math.round(generateMs / 6)); send("batch", { saqs }); }
+      if (essay?.length) { await sleep(Math.round(generateMs / 6)); send("batch", { essay }); }
+      send("done", { done: true });
+      return res.end(), true;
     }
+    if (p === "/api/dev/reset-trials") return (state.trials = { cat: true, exam: true }), json(res, 200, { ok: true }), true; // DEV ONLY
     const deliver = /^\/api\/exams\/([^/]+)\/confirm-delivery$/.exec(p);
     if (deliver) return json(res, 200, { ok: true }), true;
     if (p === "/api/submit-exam" && m === "POST") {

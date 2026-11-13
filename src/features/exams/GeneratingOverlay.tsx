@@ -3,31 +3,25 @@ import { createPortal } from "react-dom";
 import { Icon, type IconName } from "../../components/ui/Icon";
 import { ASSESSMENTS, type TestType } from "../../lib/config";
 import { formatClock } from "../../lib/exam";
-
-/** Typical generation time, as told by the product owner: CAT ≈ 4 minutes, full exam ≈ 8 minutes. */
-export const EXPECTED_GENERATION_SECONDS: Record<TestType, number> = { cat: 4 * 60, exam: 8 * 60 };
+import type { StreamProgress } from "./assessmentStream";
 
 interface Phase {
   icon: IconName;
   title: string;
   text: string;
-  /** Fraction of the expected time at which this phase starts. */
-  from: number;
 }
 
+/** Phases follow what has really arrived from the server, never the clock. */
 function phasesFor(type: TestType): Phase[] {
   const written = type === "exam";
   return [
-    { icon: "fileText", title: "Reading your request", text: "Matching your year, subject and topic.", from: 0 },
-    { icon: "bookOpen", title: "Searching the textbooks", text: "Finding the passages your questions will be built from.", from: 0.1 },
+    { icon: "fileText", title: "Reading your request", text: "Matching your year, subject and topic." },
     {
       icon: "listChecks",
-      title: written ? "Writing MCQs, SAQs and the essay" : "Drafting 50 MCQs",
-      text: written ? "Building each section of your full exam." : "Writing one-best-answer questions with plausible options.",
-      from: 0.28,
+      title: written ? "Setting your MCQs, SAQs and essay" : "Setting your MCQs",
+      text: "Your exam opens with the first questions; the rest follow.",
     },
-    { icon: "shield", title: "Checking answers against sources", text: "Every answer is checked against the source passages.", from: 0.68 },
-    { icon: "sparkles", title: "Final polish", text: "Setting up your timer and answer sheet.", from: 0.9 },
+    { icon: "sparkles", title: "Final touches", text: "Opening your answer sheet." },
   ];
 }
 
@@ -39,7 +33,7 @@ const TIPS: { title: string; text: string }[] = [
   { title: "Explanations are the lesson", text: "After you submit, read why each answer is right, not only your score." },
   { title: "Written answers: structure wins", text: "For SAQs and essays, use headings and short points so a marker can award marks quickly." },
   { title: "Watch the clock, not the page count", text: "Check the timer at the start of each section and pace to it." },
-  { title: "Repeat your weak topic", text: "Generate a fresh test on the topic you scored lowest in while it is still fresh." },
+  { title: "Repeat your weak topic", text: "Set a fresh test on the topic you scored lowest in while it is still fresh." },
   { title: "Rest your eyes", text: "Look at something far away for twenty seconds while you wait." },
 ];
 
@@ -53,13 +47,12 @@ function useNow(): number {
 }
 
 /**
- * Full-screen waiting experience for assessment generation. The percentage is an estimate based
- * on typical generation time — it never reaches 100 % until the server actually answers, and the
- * copy says so. Nothing here changes what is requested or submitted.
+ * Full-screen waiting experience while an assessment is being set up. It has no timer promise:
+ * progress is the number of questions the server has streamed so far, and the bar only reads as a
+ * percentage when the server announced how many to expect. It never shows 100 % until the exam is ready.
  */
-export function GeneratingOverlay({ testType, subject, year }: { testType: TestType; subject: string; year: string }) {
+export function GeneratingOverlay({ testType, subject, year, progress }: { testType: TestType; subject: string; year: string; progress: StreamProgress }) {
   const elapsed = useNow();
-  const expected = EXPECTED_GENERATION_SECONDS[testType];
   const phases = useMemo(() => phasesFor(testType), [testType]);
   const heading = useRef<HTMLHeadingElement>(null);
 
@@ -98,13 +91,10 @@ export function GeneratingOverlay({ testType, subject, year }: { testType: TestT
     return () => window.clearInterval(id);
   }, [breathing]);
 
-  const ratio = elapsed / expected;
-  const overtime = ratio >= 1;
-  // Smoothly approach 95 % at the expected time, then creep towards 99 % — never 100 %.
-  const percent = overtime ? Math.min(99, 95 + (1 - Math.exp(-(elapsed - expected) / 240)) * 4) : Math.min(95, ratio * 95);
-  const phaseIndex = phases.reduce((acc, phase, i) => (ratio >= phase.from ? i : acc), 0);
-  const remaining = Math.max(0, expected - elapsed);
-  const minutesLeft = Math.max(1, Math.ceil(remaining / 60));
+  const { received, expected } = progress;
+  const known = expected !== null && expected > 0;
+  const percent = known ? Math.min(99, Math.floor((received / expected!) * 100)) : null;
+  const phaseIndex = received === 0 ? 0 : known && received >= expected! ? 2 : 1;
   const label = ASSESSMENTS[testType].label;
   const currentTip = TIPS[tip]!;
 
@@ -123,7 +113,7 @@ export function GeneratingOverlay({ testType, subject, year }: { testType: TestT
         <div className="gen__core" aria-hidden="true">
           <svg viewBox="0 0 120 120" className="gen__ring">
             <circle cx="60" cy="60" r="52" className="gen__ring-bg" />
-            <circle cx="60" cy="60" r="52" className="gen__ring-fg" pathLength={100} style={{ ["--p" as string]: percent }} />
+            <circle cx="60" cy="60" r="52" className={`gen__ring-fg ${known ? "" : "is-indeterminate"}`} pathLength={100} style={{ ["--p" as string]: percent ?? 28 }} />
           </svg>
           <svg viewBox="0 0 120 120" className="gen__orbit">
             <circle cx="60" cy="8" r="4" />
@@ -132,29 +122,37 @@ export function GeneratingOverlay({ testType, subject, year }: { testType: TestT
             <svg viewBox="0 0 120 40" className="gen__ecg">
               <path d="M0 20 H30 L38 6 L48 34 L56 12 L62 20 H120" />
             </svg>
-            <strong>{Math.floor(percent)}%</strong>
+            <strong>{percent !== null ? `${percent}%` : received}</strong>
+            {percent === null ? <small>{received === 1 ? "question" : "questions"}</small> : null}
           </div>
         </div>
 
         <p className="eyebrow gen__eyebrow">{label} in progress</p>
         <h2 id="gen-title" className="gen__title" tabIndex={-1} ref={heading}>
-          Building your {testType === "cat" ? "CAT" : "full exam"}
+          Setting your {testType === "cat" ? "CAT" : "full exam"}
         </h2>
         <p id="gen-desc" className="gen__desc">
           {subject ? `${subject}${year ? ` · Year ${year}` : ""}. ` : ""}
-          {overtime
-            ? "Taking a little longer than usual. We are still working, so please keep this page open."
-            : `This usually takes about ${testType === "cat" ? "4" : "8"} minutes. Please keep this page open.`}
+          {received > 0 ? `${received} question${received === 1 ? "" : "s"} ready so far. ` : "Getting started. "}
+          Please keep this page open.
         </p>
 
-        <div className="gen__bar" role="progressbar" aria-label="Estimated progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.floor(percent)}>
-          <span style={{ width: `${percent}%` }} />
+        <div
+          className={`gen__bar ${known ? "" : "is-indeterminate"}`}
+          role="progressbar"
+          aria-label="Setting up your assessment"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={percent ?? undefined}
+          aria-valuetext={percent === null ? `${received} questions ready` : `${percent}%`}
+        >
+          <span style={known ? { width: `${percent}%` } : undefined} />
         </div>
         <div className="gen__times">
           <span>Elapsed {formatClock(elapsed, false)}</span>
-          <span>{overtime ? "Finishing up" : `About ${minutesLeft} min left`}</span>
+          <span>{received} ready</span>
         </div>
-        <p className="gen__estimate">Progress is an estimate based on typical generation time. It reaches 100% only when your assessment is ready.</p>
+        <p className="gen__estimate">Your exam opens as soon as the first questions arrive. The rest keep arriving while you answer.</p>
 
         <ol className="gen__phases" aria-label="What is happening">
           {phases.map((phase, i) => {
@@ -215,7 +213,7 @@ export function GeneratingOverlay({ testType, subject, year }: { testType: TestT
         </div>
 
         <div className="sr-only" role="status" aria-live="polite">
-          {phases[phaseIndex]?.title}
+          {phases[phaseIndex]?.title}{received > 0 ? `, ${received} questions ready` : ""}
         </div>
       </div>
     </div>,

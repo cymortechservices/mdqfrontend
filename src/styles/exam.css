@@ -8,7 +8,9 @@
 .exam-bar__actions { display: flex; align-items: center; gap: 0.5rem; }
 .timer { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.45rem 0.85rem; border-radius: 12px; border: 1px solid var(--line); background: var(--bg-deep); font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.05rem; min-width: 7.2rem; justify-content: center; }
 .timer.is-warn { border-color: var(--warn); color: var(--warn); background: var(--warn-soft); }
-.timer.is-danger { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); animation: pulse 1s ease-in-out infinite; }
+.timer.is-danger { border-color: var(--danger); color: #fff; background: var(--danger); animation: timer-flash 0.8s ease-in-out infinite; }
+@keyframes timer-flash { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 hsla(0, 85%, 55%, 0.55); } 50% { opacity: 0.55; box-shadow: 0 0 0 8px hsla(0, 85%, 55%, 0); } }
+@media (prefers-reduced-motion: reduce) { .timer.is-danger { animation: none; } }
 .exam-body { width: min(100% - 2 * var(--gutter), 1320px); margin-inline: auto; display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 1.6rem; padding: 1.6rem 0 4rem; align-items: start; }
 .exam-side { position: sticky; top: 90px; max-height: calc(100vh - 110px); overflow: auto; padding: 1.1rem; border-radius: var(--radius-lg); border: 1px solid var(--line); background: var(--surface); }
 .exam-main { display: grid; gap: 1.1rem; min-width: 0; }
@@ -60,3 +62,25 @@
   .timer { min-width: 0; font-size: 0.95rem; } .exam-submit { margin-left: auto; }
   .option { padding: 0.85rem; } .exam-pager .btn { flex: 1; }
 }
+
+/* Questions arriving from the stream */
+.stream-banner { display: flex; gap: 0.85rem; align-items: flex-start; padding: 0.9rem 1.05rem; border-radius: var(--radius); border: 1px solid hsla(152, 70%, 52%, 0.4); background: var(--success-soft); animation: stream-pulse 2.4s ease-in-out infinite; }
+.stream-banner > div { display: grid; gap: 0.25rem; min-width: 0; flex: 1; }
+.stream-banner strong { font-variant-numeric: tabular-nums; }
+.stream-banner span:not(.spinner) { color: var(--text-2); font-size: 0.88rem; }
+.stream-banner .spinner { margin-top: 0.15rem; flex: none; }
+.stream-banner__track { height: 6px; border-radius: 99px; background: hsla(0, 0%, 100%, 0.1); overflow: hidden; margin-top: 0.3rem; }
+.stream-banner__track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--cta-color), var(--accent-2)); transition: width 0.5s var(--ease); }
+@keyframes stream-pulse { 0%, 100% { box-shadow: 0 0 0 0 hsla(152, 70%, 52%, 0); } 50% { box-shadow: 0 0 0 4px hsla(152, 70%, 52%, 0.12); } }
+.qbtn--pending { border-style: dashed; color: var(--text-3); background: transparent; opacity: 0.6; cursor: default; pointer-events: none; animation: qbtn-wait 1.6s ease-in-out infinite; }
+@keyframes qbtn-wait { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.75; } }
+.qcard { animation: qcard-in 0.35s var(--ease) both; }
+@keyframes qcard-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.qbtn.is-new { animation: qbtn-pop 0.5s var(--ease) both; }
+@keyframes qbtn-pop { from { transform: scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .stream-banner, .qbtn--pending, .qcard, .qbtn.is-new { animation: none !important; } }
+
+/* Submit stays visibly locked until every question has arrived and been answered */
+.exam-submit.is-locked, .exam-pager .btn.is-locked { opacity: 0.35; cursor: not-allowed; filter: saturate(0.6); }
+.submit-hint { display: flex; align-items: center; gap: 0.45rem; margin: 0.2rem 0 0; font-size: 0.86rem; color: var(--text-3); }
+.submit-hint.is-ready { color: var(--accent-2); }
