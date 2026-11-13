@@ -1,38 +1,42 @@
-name: Unpack MDQ zip
+name: Extract MDQ V3 ZIP
 
-# Upload MDQ-Frontend-Redesign.zip to the repo root. This workflow unpacks it into the repo root,
-# removes the zip and commits. Vercel (connected to the repo) then builds and deploys automatically.
-# No secrets or repository settings needed.
 on:
-  push:
-    branches: [main]
-    paths: ["MDQ-Frontend-Redesign.zip"]
   workflow_dispatch:
+  push:
+    paths:
+      - "MDQ-V3-CINEMATIC-REDESIGN.zip"
 
 permissions:
   contents: write
 
 jobs:
-  unpack:
+  extract:
+    # Skip the run caused by this workflow's own commit.
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repo
+        uses: actions/checkout@v4
 
-      - name: Extract the zip into the repo root
+      - name: Make sure the ZIP exists
         run: |
-          test -f MDQ-Frontend-Redesign.zip
-          unzip -q MDQ-Frontend-Redesign.zip -d _unzipped
-          rm MDQ-Frontend-Redesign.zip
-          # replace previous app files, keep .git and .github
-          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name .github ! -name _unzipped -exec rm -rf {} +
-          cp -a _unzipped/MDQ-Frontend-Redesign/. .
-          rm -rf _unzipped .github/workflows/deploy-vercel.yml.bak
+          if [ ! -f MDQ-V3-CINEMATIC-REDESIGN.zip ]; then
+            echo "MDQ-V3-CINEMATIC-REDESIGN.zip not found in the repo root"; exit 1
+          fi
 
-      - name: Commit and push
+      - name: Extract ZIP
         run: |
-          git config user.name "github-actions[bot]"
+          rm -rf /tmp/mdq && mkdir /tmp/mdq
+          unzip -q MDQ-V3-CINEMATIC-REDESIGN.zip -d /tmp/mdq
+          # The archive holds one top-level folder (MDQ-Frontend-Redesign/); copy its contents to the repo root.
+          cp -a /tmp/mdq/MDQ-Frontend-Redesign/. .
+          rm MDQ-V3-CINEMATIC-REDESIGN.zip
+
+      - name: Commit and push extracted files
+        run: |
+          git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git diff --cached --quiet && echo "Nothing to commit" && exit 0
-          git commit -m "Deploy MDQ frontend from zip"
+          git commit -m "Extract MDQ V3 cinematic redesign [skip ci]"
           git push
