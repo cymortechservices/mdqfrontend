@@ -1,6 +1,5 @@
-import { Component, Suspense, useEffect, useRef, type ErrorInfo, type ReactNode } from "react";
-import { Router, useLocation, useScrollManagement } from "../lib/router";
-import { endIntro, useIntroActive } from "../lib/introState";
+import { Component, Suspense, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from "react";
+import { Router, canonicalPathname, useLocation, useScrollManagement } from "../lib/router";
 import { ToastProvider } from "../components/ui/Toast";
 import { Skeleton } from "../components/ui/Feedback";
 import { Button } from "../components/ui/Button";
@@ -79,9 +78,9 @@ function AppRoutes() {
   const { pathname, hash } = useLocation();
   useScrollManagement();
 
-  // The cinematic intro plays once per browser session when a visitor ENTERS the site on the homepage
-  // (see lib/introState.ts). Internal navigation and reloads within the session never replay it; `?intro` does.
-  const introActive = useIntroActive();
+  // The cinematic intro plays when a visitor ENTERS the site on the homepage (every page load,
+  // including repeat visits). It is initialised once, so internal navigation never replays it.
+  const [introActive, setIntroActive] = useState(() => canonicalPathname(window.location.pathname) === "/");
 
   // Move focus to the new page's main region after in-app navigation (not on first load, not for #anchors).
   const firstRender = useRef(true);
@@ -99,7 +98,7 @@ function AppRoutes() {
       <div id="app-root" {...(introActive ? { inert: true, "aria-hidden": true } : {})}>
         {renderRoute(route, pathname)}
       </div>
-      {introActive ? <Intro onDone={endIntro} /> : null}
+      {introActive ? <Intro onDone={() => setIntroActive(false)} /> : null}
     </>
   );
 }
