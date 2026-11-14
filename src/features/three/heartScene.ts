@@ -281,8 +281,6 @@ void main(){
 export type HeartMode = "intro" | "hero";
 
 export interface HeartScene {
-  /** Render one intro frame for time t (seconds). */
-  renderIntro(t: number): void;
   /** Render one hero frame. */
   renderHero(timeSec: number): void;
   setPointer(x: number, y: number): void;
@@ -297,8 +295,6 @@ export interface HeartSceneOptions {
   lowPower: boolean;
   onContextLost?: () => void;
 }
-
-export const INTRO_TOTAL = 7.8;
 
 function beatCurve(t: number, period: number) {
   // "lub-dub": two quick pulses followed by rest.
@@ -507,16 +503,6 @@ export function createHeartScene({ canvas, mode, lowPower, onContextLost }: Hear
   hud.add(new LineSegments(lineGeo, lineMat));
   scene.add(hud);
 
-  // Portal: a thin luminous ring (plus soft halo) that the particles gather around in scene 4.
-  const portalGeo = new TorusGeometry(ringR, 0.016, 8, 200);
-  const haloGeo = new TorusGeometry(ringR, 0.16, 8, 200);
-  const portalMat = new MeshBasicMaterial({ color: PALETTE.accent2, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false });
-  const haloMat = new MeshBasicMaterial({ color: PALETTE.accent, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false });
-  const portal = new Group();
-  portal.add(new Mesh(portalGeo, portalMat), new Mesh(haloGeo, haloMat));
-  portal.visible = false;
-  scene.add(portal);
-
   /* Sizing */
   let width = 1;
   let height = 1;
@@ -584,58 +570,6 @@ export function createHeartScene({ canvas, mode, lowPower, onContextLost }: Hear
     },
     resize,
 
-    renderIntro(t) {
-      const assemble = smooth(0.1, 2.3, t);
-      const emerge = smooth(0.7, 2.3, t);
-      const beatOn = smooth(1.3, 2.2, t);
-      const beat = beatCurve(Math.max(0, t - 1.3), 0.96) * beatOn;
-      const back = smooth(3.9, 5.2, t);
-      const dissolve = smooth(6.1, 7.2, t);
-      const ring = smooth(6.0, 7.05, t);
-      const fly = smooth(6.75, 7.75, t);
-      const flyE = fly * fly * (3 - 2 * fly);
-
-      const scanOn = smooth(1.9, 2.5, t) * (1 - smooth(4.1, 4.7, t));
-      heartMaterial.uniforms.uScanOn!.value = scanOn;
-      heartMaterial.uniforms.uScanY!.value = Math.sin((t - 2) * 2.1) * 0.85;
-      heartMaterial.uniforms.uOpacity!.value = emerge * (1 - 0.35 * back);
-      heartMaterial.uniforms.uDissolve!.value = dissolve;
-      heartMaterial.uniforms.uDim!.value = 1 - 0.38 * back;
-      particleMaterial.uniforms.uAssemble!.value = assemble;
-      particleMaterial.uniforms.uRing!.value = ring;
-      particleMaterial.uniforms.uAlpha!.value = 0.35 + 0.65 * smooth(0, 1.2, t);
-
-      applyHeartTransform({
-        y: lerp(0.0, 0.15, back),
-        z: lerp(0, -2.6, back),
-        scale: lerp(0.84, 1, emerge) * lerp(1, 0.9, back),
-        beat,
-        rotY: 0.5 + t * 0.42,
-        tiltX: 0.06,
-      });
-
-      const portalA = smooth(6.35, 7.0, t) * (1 - smooth(7.35, 7.7, t));
-      portal.visible = portalA > 0.002;
-      portalMat.opacity = portalA * 0.9;
-      haloMat.opacity = portalA * 0.07;
-      portal.rotation.z = t * 0.5;
-      portal.scale.setScalar(1 + 0.04 * Math.sin(t * 6));
-
-      // HUD: scanning ring + data nodes during scene 2, fading as the heart recedes.
-      const hudAlpha = smooth(2.0, 2.7, t) * (1 - smooth(4.6, 5.6, t));
-      setHud(hudAlpha);
-      scanGroup.position.y = Math.sin((t - 2) * 2.1) * 0.85;
-      scanGroup.scale.setScalar(1 - 0.12 * Math.abs(Math.sin((t - 2) * 2.1)));
-      scanGroup.rotation.z = t * 0.6;
-      hud.rotation.y = t * 0.18;
-
-      // Camera: slow dolly-in with a little sway; then flies through the portal ring at z = 0.
-      const dolly = fitZ - 0.7 * smooth(0, 6, t);
-      camera.position.set(Math.sin(t * 0.5) * 0.28 * (1 - flyE), 0.12 + Math.cos(t * 0.4) * 0.08, lerp(dolly, -1.4, flyE));
-      look.set(0, 0, lerp(-1, -6, flyE));
-      draw(t);
-    },
-
     renderHero(time) {
       pointer.sx += (pointer.x - pointer.sx) * 0.06;
       pointer.sy += (pointer.y - pointer.sy) * 0.06;
@@ -678,10 +612,6 @@ export function createHeartScene({ canvas, mode, lowPower, onContextLost }: Hear
       lineGeo.dispose();
       nodeGeo.dispose();
       nodeMat.dispose();
-      portalGeo.dispose();
-      haloGeo.dispose();
-      portalMat.dispose();
-      haloMat.dispose();
       hudMats.forEach((m) => m.dispose());
       renderer.dispose();
       renderer.forceContextLoss();

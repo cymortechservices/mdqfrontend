@@ -1,41 +1,22 @@
 /**
  * Tiny external store for the cinematic intro.
  *
- * The intro plays once per browser session when a visitor lands on "/" (never during normal
- * in-app navigation, and not again on reload within the same session). `?intro` replays it on demand.
- * While it plays, <html> carries `hero-hold`, which keeps the hero entrance animations paused until
- * the portal opens (see styles/home.css).
+ * The intro plays on EVERY visit: each time the site is opened (a full page load) at "/". It never
+ * replays during normal in-app navigation (clicking Home, back/forward), because this module is
+ * evaluated once per page load. A visible Skip button (and Esc) is always available.
+ * While it plays, <html> carries `hero-hold`, which keeps the hero entrance animations and the
+ * typewriter paused until the iris opens (see styles/home.css).
  */
 import { useSyncExternalStore } from "react";
 import { canonicalPathname } from "./router";
 
-const KEY = "mdq.intro.seen";
-
-function decide(): boolean {
-  if (typeof window === "undefined") return false;
-  if (canonicalPathname(window.location.pathname) !== "/") return false;
-  if (new URLSearchParams(window.location.search).has("intro")) return true;
-  try {
-    return window.sessionStorage.getItem(KEY) !== "1";
-  } catch {
-    return true;
-  }
-}
-
-export const INTRO_PLAYS = decide();
+export const INTRO_PLAYS = typeof window !== "undefined" && canonicalPathname(window.location.pathname) === "/";
 let active = INTRO_PLAYS;
 const listeners = new Set<() => void>();
 
-if (INTRO_PLAYS && typeof document !== "undefined") {
-  document.documentElement.classList.add("hero-hold");
-  try {
-    window.sessionStorage.setItem(KEY, "1");
-  } catch {
-    /* storage unavailable: the intro simply plays again next load */
-  }
-}
+if (INTRO_PLAYS && typeof document !== "undefined") document.documentElement.classList.add("hero-hold");
 
-/** Let the hero entrance animations run (called when the portal starts opening). */
+/** Let the hero entrance animations run (called when the iris starts opening). */
 export function releaseHero() {
   document.documentElement.classList.remove("hero-hold");
 }
