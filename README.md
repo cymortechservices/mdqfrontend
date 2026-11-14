@@ -79,7 +79,7 @@ Legacy URLs (`/pages/login.html`, `/portal.html`, …) are canonicalised to clea
 
 ## Honest limitations — please read
 
-1. **Pricing.** Kept exactly as the current frontend: **CAT KSh 30, full exam KSh 99** (`src/lib/config.ts`). The frontend never sends an amount; the **backend decides what M-Pesa actually charges**. The master brief mentioned KSh 90 for the exam — if the backend charges 90, change `PRICING.exam` in one place.
+1. **Pricing.** CAT unchanged; the full exam price was updated from KSh 99 to KSh 79 at the owner's request: **CAT KSh 30, full exam KSh 79** (`src/lib/config.ts`). The frontend never sends an amount; the **backend decides what M-Pesa actually charges**. The master brief mentioned KSh 90 for the exam — if the backend charges 90, change `PRICING.exam` in one place.
 2. **Leaderboard.** The original page was "Coming soon" and no endpoint exists, so no rankings are shown.
 3. **Not verified against the real backend / live M-Pesa.** Everything was exercised against the included mock only. Payment logic is a 1:1 port; confirmation relies solely on the server's `paid` status.
 4. **Toolchain.** The build sandbox could not reach the npm registry, so the stack is deliberately dependency-light: React, zod, esbuild-based scripts, an in-house router and motion helpers, inline SVG icons/charts. `package-lock.json` is included (generated with `npm install`). Type-checking was done with a private minimal React type shim; with real `@types/react` installed, run `npm run typecheck` to confirm.

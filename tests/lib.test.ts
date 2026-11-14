@@ -7,10 +7,10 @@ import { computeInsights, normalizeHistoryRecord, resolveOptionAnswer, summarize
 import { canonicalPathname } from "../src/lib/router";
 import { PROMISED_QUESTIONS, applyMessage, drainEvents, finishStream, newStreamState, partialExam, receivedCount } from "../src/features/exams/assessmentStream";
 
-test("pricing is kept as in the existing frontend (CAT 30, exam 99)", () => {
+test("pricing is kept as in the existing frontend (CAT 30, exam 79)", () => {
   assert.equal(PRICING.cat, 30);
-  assert.equal(PRICING.exam, 99);
-  assert.equal(formatPrice(99), "KSh 99");
+  assert.equal(PRICING.exam, 79);
+  assert.equal(formatPrice(79), "KSh 79");
   assert.equal(ASSESSMENTS.cat.minutes, 45);
   assert.equal(ASSESSMENTS.exam.minutes, 135);
 });

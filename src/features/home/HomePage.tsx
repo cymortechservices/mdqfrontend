@@ -142,9 +142,9 @@ const HERO_PANELS = [0, 1, 3, 4, 6] as const;
 const FOUNDERS = [
   {
     key: "founder",
-    initials: "KW",
+    initials: "KK",
     label: "Founder",
-    name: "Kennedy Wairimu",
+    name: "Kennedy Karimi",
     position: "Founder of MDQ",
     title: "C.E.O of Karimique Labs",
     vision:
@@ -340,9 +340,17 @@ export default function HomePage() {
               <span className="demo__plate demo__plate--back" aria-hidden="true" />
               <span className="demo__plate demo__plate--mid" aria-hidden="true" />
               <span className="demo__glow" aria-hidden="true" />
-              <div className="phone tilt" data-tilt="9">
-                <img src="/images/mdq-image.webp" alt="Preview of MDQ medical exam practice on a phone" width="348" height="664" loading="lazy" decoding="async" />
-                <span className="phone__sheen" aria-hidden="true" />
+              <div className="demo__rig">
+                <span className="demo__ring demo__ring--1" aria-hidden="true" />
+                <span className="demo__ring demo__ring--2" aria-hidden="true" />
+                <span className="demo__beam" aria-hidden="true" />
+                              <div className="phone tilt" data-tilt="9">
+                  <img src="/images/mdq-image.webp" alt="Preview of MDQ medical exam practice on a phone" width="348" height="664" loading="lazy" decoding="async" />
+                  <span className="phone__sheen" aria-hidden="true" />
+                </div>
+                <span className="demo__chip demo__chip--a" aria-hidden="true"><Icon name="check" size={14} /> Numbered navigator</span>
+                <span className="demo__chip demo__chip--b" aria-hidden="true"><Icon name="check" size={14} /> Timed, one question at a time</span>
+                <span className="demo__chip demo__chip--c" aria-hidden="true"><Icon name="check" size={14} /> Marking feedback</span>
               </div>
             </div>
           </Reveal>

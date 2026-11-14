@@ -29,7 +29,7 @@ try {
     await page.click(".intro__skip", { timeout: 2000 });
     await page.waitForSelector("#pricing");
     assert.match(await page.textContent("#pricing"), /KSh 30/);
-    assert.match(await page.textContent("#pricing"), /KSh 99/);
+    assert.match(await page.textContent("#pricing"), /KSh 79/);
   });
   await step("legacy URLs redirect to clean routes", async () => {
     await page.goto(base + "/pages/login.html");

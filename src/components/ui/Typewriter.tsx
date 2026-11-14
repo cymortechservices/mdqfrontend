@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useReducedMotion } from "../../lib/motion";
 
 /** True once the cinematic intro has released the hero (html no longer carries `hero-hold`). */
@@ -53,8 +53,6 @@ export function Typewriter({ segments, speed = 46, startDelay = 650 }: { segment
         // a touch of human irregularity: slower after punctuation and spaces
         const ch = segments.flatMap((s) => [...s.text])[n - 1] ?? "";
         timer = window.setTimeout(tick, speed * (ch === "." ? 5 : ch === " " ? 1.6 : 0.7 + Math.random() * 0.7));
-      } else {
-        timer = window.setTimeout(() => setCaret(false), 2600);
       }
     }, startDelay);
     return () => window.clearTimeout(timer);
@@ -69,11 +67,14 @@ export function Typewriter({ segments, speed = 46, startDelay = 650 }: { segment
         const active = caret && typed >= consumed && typed < consumed + chars.length + (i === segments.length - 1 ? 1 : 0) && (typed > 0 || i === 0);
         consumed += chars.length;
         return (
-          <span key={i} className={`tw ${segment.className ?? ""}`.trim()}>
-            {chars.slice(0, done).join("")}
+          <Fragment key={i}>
+            <span className={`tw ${segment.className ?? ""}`.trim()}>
+              {chars.slice(0, done).join("")}
+              <span className="tw__rest">{chars.slice(done).join("")}</span>
+            </span>
+            {/* caret lives OUTSIDE the (gradient-clipped) text span so it is always visible, right after the last typed character */}
             {active ? <span className="tw__caret" aria-hidden="true" /> : null}
-            <span className="tw__rest">{chars.slice(done).join("")}</span>
-          </span>
+          </Fragment>
         );
       })}
     </>

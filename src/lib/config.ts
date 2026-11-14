@@ -5,7 +5,7 @@
  * PRICING — IMPORTANT
  * -------------------
  * The values below are the prices the ORIGINAL frontend displayed and the amounts its
- * payment dialog quoted: CAT KSh 30, full exam KSh 99. The frontend never sends the amount
+ * payment dialog quoted: CAT KSh 30, full exam KSh 79. The frontend never sends the amount
  * to the server (POST /api/payments/stk-push only receives { phoneNumber, testType }), so
  * the amount actually charged by M-Pesa is decided by the backend. If the backend price
  * changes, change it here once and every screen follows. See README → "Pricing".
@@ -13,7 +13,7 @@
 export const PRICING = {
   currency: "KSh",
   cat: 30,
-  exam: 99,
+  exam: 79,
 } as const;
 
 export type TestType = "cat" | "exam";
